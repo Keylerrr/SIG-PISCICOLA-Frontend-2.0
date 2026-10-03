@@ -45,6 +45,12 @@ export function RegisterWorker() {
   const [open, setOpen] = useState(false);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
 
+  const [isFarmsLoading, setIsFarmsLoading] = useState(false);
+  const [farmsError, setFarmsError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [emailError, setEmailError] = useState(null);
+  const [formError, setFormError] = useState(null);
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState(null);
 
@@ -93,12 +99,15 @@ export function RegisterWorker() {
       const token = localStorage.getItem("access");
       if (!token) return;
 
+      setIsFarmsLoading(true);
+      setFarmsError(null);
       try {
         let url = "https://backend-pongase-trucha.onrender.com/api/farms/";
 
         if (canAssignManager) {
           if (!selectedManager) {
             setFarms([]);
+            setIsFarmsLoading(false);
             return;
           }
           url = `https://backend-pongase-trucha.onrender.com/api/farms/productor/${selectedManager}/`;
@@ -114,6 +123,9 @@ export function RegisterWorker() {
         setFarms(data);
       } catch (err) {
         console.error("Error cargando granjas:", err);
+        setFarmsError("No se pudieron cargar las granjas.");
+      } finally {
+        setIsFarmsLoading(false);
       }
     };
 
@@ -230,16 +242,14 @@ export function RegisterWorker() {
   }, [currentUserId, userRole, fetchWorkersViaFarms]);
 
   useEffect(() => {
-    if (currentUserId && userRole && !loading) {
-      fetchWorkers(selectedManager);
-    }
-  }, [currentUserId, userRole, loading, selectedManager, fetchWorkers]);
+  if (!currentUserId || !userRole || loading) return;
 
-  useEffect(() => {
-    if (currentUserId && userRole && selectedManager) {
-      fetchWorkers(selectedManager);
-    }
-  }, [selectedManager, currentUserId, userRole, fetchWorkers]);
+  const loadWorkers = async () => {
+    await fetchWorkers(selectedManager);
+  };
+
+  loadWorkers();
+}, [currentUserId, userRole, loading, selectedManager, fetchWorkers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -249,6 +259,9 @@ export function RegisterWorker() {
       return;
     }
 
+    setIsSubmitting(true);
+    setEmailError(null);
+    setFormError(null);
     const token = localStorage.getItem("access");
 
     await toast.promise(
@@ -269,7 +282,13 @@ export function RegisterWorker() {
         } catch { }
 
         if (!res.ok) {
-          const errorMsg = data?.detail || data?.message || data?.non_field_errors?.[0] || "Error al enviar invitación";
+          if (data?.email) {
+            setEmailError(data.email[0] || "Correo inválido");
+          }
+          if (data?.detail === "No tienes accesos sobre esta granja.") {
+            setFormError(data.detail);
+          }
+          const errorMsg = data?.detail || data?.message || data?.email?.[0] || data?.non_field_errors?.[0] || "Ocurrió un error, intenta de nuevo";
           throw new Error(errorMsg);
         }
 
@@ -278,14 +297,20 @@ export function RegisterWorker() {
         return data;
       }),
       {
-        loading: "Creando trabajador...",
+        loading: "Procesando invitación...",
         success: () => {
           setCorreo("");
           setSelectedFarm("");
+          setEmailError(null);
+          setFormError(null);
           setOpen(false);
-          return "Invitación enviada";
+          setIsSubmitting(false);
+          return "Invitación procesada correctamente.";
         },
-        error: (err) => err.message || "Error al guardar",
+        error: (err) => {
+          setIsSubmitting(false);
+          return err.message || "Ocurrió un error, intenta de nuevo";
+        },
       }
     );
   };
@@ -338,6 +363,8 @@ export function RegisterWorker() {
       setCorreo("");
       setSelectedManager("");
       setSelectedFarm("");
+      setEmailError(null);
+      setFormError(null);
     }
   };
 
@@ -370,15 +397,53 @@ export function RegisterWorker() {
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <FieldGroup>
+                {formError && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4">
+                    {formError}
+                  </div>
+                )}
                 <Field>
                   <Label>Correo del Operario</Label>
                   <Input
                     type="email"
                     placeholder="correo@correo.com"
                     value={correo}
-                    onChange={(e) => setCorreo(e.target.value)}
+                    onChange={(e) => {
+                      setCorreo(e.target.value);
+                      setEmailError(null);
+                    }}
                     required
+                    disabled={isSubmitting}
+                    className={emailError ? "border-red-500" : ""}
                   />
+                  {emailError && <p className="text-sm text-red-500 mt-1">{emailError}</p>}
+                </Field>
+
+                <Field>
+                  <Label>Granja</Label>
+                  <Select 
+                    onValueChange={(val) => {
+                      setSelectedFarm(val);
+                      setFormError(null);
+                    }} 
+                    value={selectedFarm} 
+                    required
+                    disabled={isFarmsLoading || !!farmsError || isSubmitting || (canAssignManager && !selectedManager)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={isFarmsLoading ? "Cargando granjas..." : "Selecciona una granja"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {farms.map((f) => (
+                          <SelectItem key={f.id} value={String(f.id)}>
+                            {f.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {farmsError && <p className="text-sm text-red-500 mt-1">{farmsError}</p>}
                 </Field>
 
                 {canAssignManager && (
@@ -391,6 +456,7 @@ export function RegisterWorker() {
                       }} 
                       value={selectedManager} 
                       required={canAssignManager}
+                      disabled={isSubmitting}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione un productor" />
@@ -410,10 +476,10 @@ export function RegisterWorker() {
               </FieldGroup>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
                   Cancelar
                 </Button>
-                <Button type="submit">Guardar</Button>
+                <Button type="submit" disabled={isSubmitting || !!farmsError}>Guardar</Button>
               </DialogFooter>
             </form>
           </DialogContent>
