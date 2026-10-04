@@ -1,6 +1,18 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import {
+  Warehouse,
+  UserCheck,
+  Map as MapIcon,
+  MapPin,
+  Signpost,
+  LandPlot,
+  Droplets,
+  Eraser,
+  Check,
+  Loader2,
+} from "lucide-react";
 import { useFlags } from '@/hooks/useFlags';
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
@@ -41,6 +53,28 @@ async function getBackendError(res) {
     const raw = await res.clone().text().catch(() => "");
     return raw || `Error ${res.status}: ${res.statusText}`;
   }
+}
+
+/* ---------- Piezas visuales (sin lógica de negocio) ---------- */
+
+function Label({ icon: Icon, children }) {
+  return (
+    <FieldLabel className="flex items-center gap-2 text-sm font-medium text-slate-700">
+      <Icon className="h-4 w-4 text-blue-600" />
+      {children}
+    </FieldLabel>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
 }
 
 export function FarmRegisterForm({
@@ -219,176 +253,202 @@ export function FarmRegisterForm({
   }
 
   return (
-    <FieldGroup className="space-y-4">
-      {/* 👇 Nombre */}
-      <Field>
-        <FieldLabel>Nombre de la Granja *</FieldLabel>
-        <Input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej: Finca La Esperanza"
-          maxLength={100}
-          disabled={isSubmitting}
-          required
-        />
-        <FieldDescription>Mínimo 3, máximo 100 caracteres.</FieldDescription>
-      </Field>
-
-      { }
-      {canAssignManager && (
-        <Field>
-          <FieldLabel>Productor Responsable *</FieldLabel>
-          <Select
-            onValueChange={setSelectedProductor}
-            value={selectedProductor}
-            disabled={isSubmitting}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccione un productor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {productores.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name} {p.lastname}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-      )}
-
-      { }
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field>
-          <FieldLabel>Departamento *</FieldLabel>
-          <Select
-            onValueChange={(val) => {
-              setSelectedDepartment(val);
-              setSelectedCity("");
-            }}
-            value={String(selectedDepartment)}
-            disabled={isSubmitting}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccione" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {departamentos.map((d) => (
-                  <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field>
-          <FieldLabel>Ciudad/Municipio *</FieldLabel>
-          <Select
-            onValueChange={setSelectedCity}
-            value={String(selectedCity)}
-            disabled={isSubmitting || !selectedDepartment}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={
-                !selectedDepartment ? "Primero seleccione departamento" :
-                  ciudades.length === 0 ? "Cargando..." : "Seleccione"
-              } />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {ciudades.length === 0 && selectedDepartment ? (
-                  <SelectItem value="no-cities" disabled>Sin ciudades disponibles</SelectItem>
-                ) : (
-                  ciudades.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                  ))
-                )}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-
-      { }
-      <Field>
-        <FieldLabel>Dirección *</FieldLabel>
-        <Input
-          value={direccion}
-          onChange={(e) => setDireccion(e.target.value)}
-          placeholder="Ej: Km 5 vía principal, vereda El Roble"
-          maxLength={200}
-          disabled={isSubmitting}
-          required
-        />
-        <FieldDescription>Máximo 200 caracteres.</FieldDescription>
-      </Field>
-
-      { }
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field>
-          <FieldLabel>Área Total (hectáreas) *</FieldLabel>
+    <div className="flex max-h-[calc(100dvh-12rem)] flex-col gap-3">
+    <FieldGroup className="min-h-0 flex-1 gap-3 overflow-y-auto pr-1">
+      {/* Información general */}
+      <Section title="Información general">
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
+        <Field className={canAssignManager ? "" : "sm:col-span-2"}>
+          <Label icon={Warehouse}>Nombre de la Granja *</Label>
           <Input
-            type="number"
-            step="0.01"
-            min="0.01"
-            max="100000"
-            value={totalArea}
-            onChange={(e) => setArea(e.target.value)}
-            placeholder="Ej: 12.50"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: Finca La Esperanza"
+            maxLength={100}
             disabled={isSubmitting}
             required
+            className="bg-white"
           />
-          <FieldDescription>Use punto para decimales.</FieldDescription>
+          <FieldDescription className="text-xs">Mínimo 3, máximo 100 caracteres.</FieldDescription>
         </Field>
+
+        {canAssignManager && (
+          <Field>
+            <Label icon={UserCheck}>Productor Responsable *</Label>
+            <Select
+              onValueChange={setSelectedProductor}
+              value={selectedProductor}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="Seleccione un productor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {productores.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} {p.lastname}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+        </div>
+      </Section>
+
+      {/* Ubicación */}
+      <Section title="Ubicación">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field>
+            <Label icon={MapIcon}>Departamento *</Label>
+            <Select
+              onValueChange={(val) => {
+                setSelectedDepartment(val);
+                setSelectedCity("");
+              }}
+              value={String(selectedDepartment)}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="Seleccione" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {departamentos.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field>
+            <Label icon={MapPin}>Ciudad/Municipio *</Label>
+            <Select
+              onValueChange={setSelectedCity}
+              value={String(selectedCity)}
+              disabled={isSubmitting || !selectedDepartment}
+            >
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder={
+                  !selectedDepartment ? "Primero seleccione departamento" :
+                    ciudades.length === 0 ? "Cargando..." : "Seleccione"
+                } />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {ciudades.length === 0 && selectedDepartment ? (
+                    <SelectItem value="no-cities" disabled>Sin ciudades disponibles</SelectItem>
+                  ) : (
+                    ciudades.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))
+                  )}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
 
         <Field>
-          <FieldLabel>Fuente de Agua</FieldLabel>
-          <Select
-            onValueChange={setWaterSource}
-            value={waterSource}
+          <Label icon={Signpost}>Dirección *</Label>
+          <Input
+            value={direccion}
+            onChange={(e) => setDireccion(e.target.value)}
+            placeholder="Ej: Km 5 vía principal, vereda El Roble"
+            maxLength={200}
             disabled={isSubmitting}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccione una fuente" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {WATER_SOURCES.map((source) => (
-                  <SelectItem key={source.value} value={source.value}>
-                    {source.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <FieldDescription className="text-xs text-slate-500">
-            Opcional.
-          </FieldDescription>
+            required
+            className="bg-white"
+          />
+          <FieldDescription className="text-xs">Máximo 200 caracteres.</FieldDescription>
         </Field>
-      </div>
+      </Section>
 
-      { }
-      <Field orientation="horizontal" className="justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={handleReset} disabled={isSubmitting}>
+      {/* Terreno y agua */}
+      <Section title="Terreno y fuente de agua">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field>
+            <Label icon={LandPlot}>Área Total (hectáreas) *</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max="100000"
+              value={totalArea}
+              onChange={(e) => setArea(e.target.value)}
+              placeholder="Ej: 12.50"
+              disabled={isSubmitting}
+              required
+              className="bg-white"
+            />
+            <FieldDescription className="text-xs">Use punto para decimales.</FieldDescription>
+          </Field>
+
+          <Field>
+            <Label icon={Droplets}>
+              Fuente de Agua <span className="font-normal text-slate-500">(opcional)</span>
+            </Label>
+            <Select
+              onValueChange={setWaterSource}
+              value={waterSource}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="Seleccione una fuente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {WATER_SOURCES.map((source) => (
+                    <SelectItem key={source.value} value={source.value}>
+                      {source.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </Section>
+
+    </FieldGroup>
+
+      {/* Acciones (siempre visibles) */}
+      <Field
+        orientation="horizontal"
+        className="justify-end gap-3 border-t border-slate-100 pt-3"
+      >
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleReset}
+          disabled={isSubmitting}
+          className="gap-2"
+        >
+          <Eraser className="h-4 w-4" />
           Borrar
         </Button>
         <Button
           type="button"
           onClick={op === 1 ? handleSubmit : handleEdit}
           disabled={isSubmitting}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          className="min-w-[130px] gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
         >
           {isSubmitting ? (
-            <span className="flex items-center gap-2">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
               {op === 1 ? "Creando..." : "Actualizando..."}
-            </span>
-          ) : op === 1 ? "Crear Granja" : "Actualizar"}
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4" />
+              {op === 1 ? "Crear Granja" : "Actualizar"}
+            </>
+          )}
         </Button>
       </Field>
-    </FieldGroup>
+    </div>
   );
 }

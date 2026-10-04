@@ -21,22 +21,16 @@ export default function InventoryContent({ farmId }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
-      <Toaster position="top-center" />
-      <div className="max-w-7xl mx-auto px-4">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-800 hover:cursor-pointer mb-6"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Volver a la Vista de la Granja
-        </button>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800">Inventario</h1>
-            <p className="text-slate-600">Gestiona los productos, proveedores y movimientos</p>
-          </div>
-        </div>
+    <div>
+  <Toaster position="top-center" />
+  <div>
+
+    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-900">Inventario</h2>
+        <p className="text-sm text-slate-500">Gestiona los productos, proveedores y movimientos</p>
+      </div>
+    </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-50">

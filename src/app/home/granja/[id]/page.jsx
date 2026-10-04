@@ -4,17 +4,20 @@ import {
   hasPermission,
   PERMISSIONS,
 } from "@/lib/permissions";
-import { use, useEffect, useState } from "react";
-import Link from "next/link";
+import { Suspense, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowUpRight,
   UserCog,
   Package,
   Plus,
   Loader2,
-  Fish,
   Receipt,
+  Search,
+  Factory,
+  Waves,
+  CalendarClock,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,9 +27,12 @@ import { BatchRegisterForm } from "@/app/components/batches/batch_form";
 import { ProductionPlans } from "@/app/components/production/production_plan";
 import { ProductionPlanForm } from "@/app/components/production/production_plan_form";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { PondRegisterForm } from "@/app/components/ponds/pond_form";
+import { FeedingSchedules } from "@/app/components/feeding/feeding_schedules_tab";
+import { FarmWorkers } from "@/app/components/workers/farm_workers_tab";
+import InventoryContent from "@/app/home/granja/[id]/inventory/InventoryContent";
+import SalesContent from "@/app/home/granja/[id]/sales/SalesContent";
 
 import {
   Select,
@@ -46,6 +52,56 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+/* ---------- Piezas visuales locales (sin lógica de negocio) ---------- */
+
+function InfoItem({ label, children }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm font-semibold text-slate-900">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+function SearchBox({ id, label, placeholder, value, onChange }) {
+  return (
+    <Field className="w-full sm:max-w-sm">
+      <FieldLabel htmlFor={id} className="sr-only">
+        {label}
+      </FieldLabel>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          id={id}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+    </Field>
+  );
+}
+
+function ModuleHeader({ title, description, action }) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+        <p className="text-sm text-slate-500">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+const primaryBtn =
+  "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-300 rounded-lg shadow-sm";
+
 export default function Granja({ params }) {
   const { id } = use(params);
 
@@ -56,6 +112,8 @@ export default function Granja({ params }) {
   const [searchBatch, setSearchBatch] = useState("");
   const [searchPlan, setSearchPlan] = useState("");
   const [ciudades, setCiudades] = useState([]);
+  const [tab, setTab] = useState("produccion");
+  const [subTab, setSubTab] = useState("planes");
 
   const router = useRouter();
 
@@ -227,8 +285,45 @@ export default function Granja({ params }) {
       PERMISSIONS.MANAGE_INVENTORY
     );
 
+  /* Pestañas principales.
+     - "panel": se muestra dentro de esta página.
+     - "href": abre la ruta existente (las rutas no cambian).
+     Los permisos son los mismos que tenían los botones originales. */
+  const mainTabs = [
+    { key: "produccion", label: "Producción", icon: Factory, visible: true },
+    { key: "estanques", label: "Estanques", icon: Waves, visible: true },
+    {
+      key: "inventario",
+      label: "Inventario",
+      icon: Package,
+      visible: canManageInventory,
+    },
+    {
+      key: "ventas",
+      label: "Ventas",
+      icon: Receipt,
+      visible: canManageInventory,
+    },
+    {
+      key: "personal",
+      label: "Personal",
+      icon: UserCog,
+      visible: canManageFarm,
+    },
+  ];
+
+  const subTabs = [
+    { key: "planes", label: "Planes" },
+    { key: "lotes", label: "Lotes" },
+    {
+      key: "cronogramas",
+      label: "Cronogramas",
+      icon: CalendarClock,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="relative min-h-screen bg-slate-50">
       {granja.length === 0 && departamentos.length === 0 && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center">
@@ -240,438 +335,405 @@ export default function Granja({ params }) {
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Volver */}
         <a
           href={"/home"}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-800"
+          className="inline-flex items-center gap-2 rounded text-sm text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4" />
           Volver a la Página de Inicio
         </a>
-      </div>
 
-      <div className="px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-sm p-6 space-y-6">
-          <div className="flex justify-between items-start">
-            <h1 className="text-4xl font-bold">
-              {granja.name}
-            </h1>
+        {/* CABECERA DE LA GRANJA */}
+        <header className="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+            {granja.name}
+          </h1>
 
-            <div className="flex flex-wrap items-center gap-3">
-              {canManageInventory && (
-                <Button 
-                  onClick={() => {
-                    router.push(`/home/granja/${id}/inventory`);
-                  }}
-                  className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl shadow-sm transition-all"
-                >
-                  <Package className="w-5 h-5" />
-                  Inventario
-                </Button>
-              )}
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-100 pt-4 sm:grid-cols-3 lg:grid-cols-5">
+            <InfoItem label="Departamento">
+              {departamentos.find((d) => d.id === granja.department)?.name || "—"}
+            </InfoItem>
 
-              {canManageInventory && (
-                <Button
-                  onClick={() => {
-                    router.push(`/home/granja/${id}/sales`);
-                  }}
-                  className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl shadow-sm transition-all"
-                >
-                  <Receipt className="w-5 h-5" />
-                  Ventas
-                </Button>
-              )}
+            <InfoItem label="Municipio">
+              {ciudades.find((c) => c.id === granja.city)?.name || "—"}
+            </InfoItem>
 
-              {canManageFarm && (
-                <Button
-                  onClick={() =>
-                    router.push(
-                      `/home/granja/${id}/granja_trabajadores`
-                    )
-                  }
-                  className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 hover:-translate-y-0.5 transition-all duration-200 text-white px-5 py-2.5 rounded-xl shadow-sm"
-                >
-                  <UserCog className="w-5 h-5" />
-                  Trabajadores
-                </Button>
-              )}
+            <InfoItem label="Área total">
+              {granja.total_area_ha} ha
+            </InfoItem>
 
-              <Button
-                asChild
-                className="bg-slate-900 hover:bg-slate-800 hover:-translate-y-0.5 transition-all duration-200 text-white px-5 py-2.5 rounded-xl shadow-sm"
-              >
-                <Link
-                  href={`/home/granja/${id}/alimentacion`}
-                  className="flex items-center gap-2"
-                >
-                  <Fish className="w-5 h-5" />
-                  Alimentación
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xl">
-            <div className="bg-slate-50 p-4 rounded-lg">
-              Departamento <br />
-              <p className="font-bold">
-                {
-                  departamentos.find(
-                    (d) => d.id === granja.department
-                  )?.name
-                }
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-lg">
-              Municipio <br />
-              <p className="font-bold">
-                {ciudades.find((c) => c.id === granja.city)?.name || "—"}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-lg">
-              Área Total <br />
-              <p className="font-bold">
-                {granja.total_area_ha} ha
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-lg">
-              Direccion <br />
-              <p className="font-bold">
-                {granja.address}
-              </p>
-            </div>
+            <InfoItem label="Dirección">
+              {granja.address}
+            </InfoItem>
 
             {granja.water_source?.length > 0 && (
-              <div className="bg-slate-50 p-4 rounded-lg">
-                Fuente hídrica <br />
-                <p className="font-bold">
-                  {{
-                    river: "Río",
-                    stream: "Quebrada",
-                    lake: "Lago/Laguna",
-                    spring: "Manantial",
-                    reservoir: "Embalse",
-                    deep_well: "Pozo profundo",
-                    municipal: "Acueducto municipal",
-                    irrigation_canal: "Canal de riego",
-                  }[granja.water_source] || granja.water_source}
-                </p>
-              </div>
+              <InfoItem label="Fuente hídrica">
+                {{
+                  river: "Río",
+                  stream: "Quebrada",
+                  lake: "Lago/Laguna",
+                  spring: "Manantial",
+                  reservoir: "Embalse",
+                  deep_well: "Pozo profundo",
+                  municipal: "Acueducto municipal",
+                  irrigation_canal: "Canal de riego",
+                }[granja.water_source] || granja.water_source}
+              </InfoItem>
             )}
-          </div>
+          </dl>
+        </header>
+
+        {/* PESTAÑAS PRINCIPALES */}
+        <div
+          role="tablist"
+          aria-label="Secciones de la granja"
+          className="flex gap-1 overflow-x-auto border-b border-slate-200"
+        >
+          {mainTabs
+            .filter((t) => t.visible)
+            .map((t) => {
+              const Icon = t.icon;
+              const isLink = Boolean(t.href);
+              const active = !isLink && tab === t.key;
+
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  id={`tab-${t.key}`}
+                  aria-selected={active}
+                  aria-controls={isLink ? undefined : `panel-${t.key}`}
+                  onClick={() =>
+                    isLink ? router.push(t.href) : setTab(t.key)
+                  }
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-t border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
+                    active
+                      ? "border-blue-600 text-blue-700"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {t.label}
+                  {isLink && (
+                    <ArrowUpRight className="h-3 w-3 text-slate-400" />
+                  )}
+                </button>
+              );
+            })}
         </div>
-      </div>
 
-      {/* ESTANQUES */}
-      <div className="mt-6 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto flex justify-between">
-          <div>
-            <h1 className="font-bold text-3xl">
-              Estanques
-            </h1>
+        {/* Los módulos permanecen montados y solo se ocultan:
+            no se pierden datos ni se repiten las consultas al cambiar de pestaña. */}
 
-            <p className="text-xl">
-              Selecciona un estanque para ver especies y calidad del agua
-            </p>
+        {/* ===== PRODUCCIÓN (con subpestañas) ===== */}
+        <div
+          role="tabpanel"
+          id="panel-produccion"
+          aria-labelledby="tab-produccion"
+          hidden={tab !== "produccion"}
+          className="space-y-5"
+        >
+          <div
+            role="tablist"
+            aria-label="Producción"
+            className="inline-flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-200/70 p-1"
+          >
+            {subTabs.map((s) => {
+              const Icon = s.icon;
+              const isLink = Boolean(s.href);
+              const active = !isLink && subTab === s.key;
+
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  role="tab"
+                  id={`subtab-${s.key}`}
+                  aria-selected={active}
+                  aria-controls={isLink ? undefined : `subpanel-${s.key}`}
+                  onClick={() =>
+                    isLink ? router.push(s.href) : setSubTab(s.key)
+                  }
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
+                    active
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {Icon && <Icon className="h-4 w-4" />}
+                  {s.label}
+                  {isLink && (
+                    <ArrowUpRight className="h-3 w-3 text-slate-400" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {canManagePonds && (
-            <div>
-              <Dialog>
-                <form>
-                  <DialogTrigger asChild>
-                    <Button
-                      className="text-xl flex items-center gap-2 text-white rounded-xl bg-blue-600 px-4 py-5"
-                      variant="outline"
-                    >
-                      <Plus />
-                      Agregar Estanque
-                    </Button>
-                  </DialogTrigger>
+          {/* PLANES */}
+          <section
+            role="tabpanel"
+            id="subpanel-planes"
+            aria-labelledby="subtab-planes"
+            hidden={subTab !== "planes"}
+            className="space-y-4"
+          >
+            <ModuleHeader
+              title="Planes de producción"
+              description="Define los parámetros esperados para el cultivo."
+              action={
+                canManageCycles && (
+                  <Dialog>
+                    <form>
+                      <DialogTrigger asChild>
+                        <Button className={primaryBtn}>
+                          <Plus className="w-4 h-4" />
+                          Nuevo plan
+                        </Button>
+                      </DialogTrigger>
 
-                  <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>
-                        Agregar Estanque
-                      </DialogTitle>
+                      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Registrar plan de producción</DialogTitle>
 
-                      <DialogDescription>
-                        Escribe la información del estanque que vas a agregar. Haz
-                        click en crear cuando hayas terminado.
-                      </DialogDescription>
-                    </DialogHeader>
+                          <DialogDescription>
+                            Complete los detalles del nuevo plan de producción.
+                          </DialogDescription>
+                        </DialogHeader>
 
-                    <PondRegisterForm
-                      op={1}
-                      idProp={""}
-                      idFarmProp={id}
-                      nombreProp={""}
-                      capacidadProp={""}
-                      areaProp={""}
-                      volumenProp={""}
-                      profundidadProp={""}
-                      descripcionProp={""}
-                    />
-                  </DialogContent>
-                </form>
-              </Dialog>
-            </div>
-          )}
+                        <ProductionPlanForm
+                          op={1}
+                          farmProp={id}
+                        />
+                      </DialogContent>
+                    </form>
+                  </Dialog>
+                )
+              }
+            />
+
+            <SearchBox
+              id="input-search-plans"
+              label="Buscar plan"
+              placeholder="Buscar por nombre del plan..."
+              value={searchPlan}
+              onChange={setSearchPlan}
+            />
+
+            <ProductionPlans
+              id={id}
+              search={searchPlan}
+            />
+          </section>
+
+          {/* LOTES */}
+          <section
+            role="tabpanel"
+            id="subpanel-lotes"
+            aria-labelledby="subtab-lotes"
+            hidden={subTab !== "lotes"}
+            className="space-y-4 pb-8"
+          >
+            <ModuleHeader
+              title="Lotes"
+              description="Gestiona los lotes de la granja (sin asociar a estanque)."
+              action={
+                canManagePonds && (
+                  <Dialog>
+                    <form>
+                      <DialogTrigger asChild>
+                        <Button className={primaryBtn}>
+                          <Plus className="w-4 h-4" />
+                          Crear lote
+                        </Button>
+                      </DialogTrigger>
+
+                      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Crear lote</DialogTitle>
+
+                          <DialogDescription>
+                            Escribe la información del lote que vas a crear. Haz
+                            click en crear cuando hayas terminado.
+                          </DialogDescription>
+                        </DialogHeader>
+
+                        <BatchRegisterForm
+                          op={1}
+                          idProp={""}
+                          idFarmProp={id}
+                          specieProp={""}
+                          biologicalStateProp={""}
+                          statusProp={""}
+                          initialQuantityProp={""}
+                          minWeightGProp={""}
+                          avgWeightGProp={""}
+                          maxWeightGProp={""}
+                          commentsProp={""}
+                        />
+                      </DialogContent>
+                    </form>
+                  </Dialog>
+                )
+              }
+            />
+
+            <SearchBox
+              id="input-search-batches"
+              label="Buscar lote"
+              placeholder="Buscar por estado o tipo..."
+              value={searchBatch}
+              onChange={setSearchBatch}
+            />
+
+            <Batches
+              id={id}
+              search={searchBatch}
+            />
+          </section>
+
+          {/* CRONOGRAMAS (antes la página de Alimentación) */}
+          <section
+            role="tabpanel"
+            id="subpanel-cronogramas"
+            aria-labelledby="subtab-cronogramas"
+            hidden={subTab !== "cronogramas"}
+            className="pb-8"
+          >
+            {tab === "produccion" && subTab === "cronogramas" && (
+              <FeedingSchedules id={id} />
+            )}
+          </section>
         </div>
-      </div>
 
-      <div className="mt-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-4 sm:items-end sm:justify-between">
-          <div className="w-full sm:flex-1">
-            <Field className="text-xl">
-              <FieldLabel
-                htmlFor="input-button-group"
-                className="text-xl"
-              >
-                Buscar
-              </FieldLabel>
+        {/* ===== ESTANQUES ===== */}
+        <section
+          role="tabpanel"
+          id="panel-estanques"
+          aria-labelledby="tab-estanques"
+          hidden={tab !== "estanques"}
+          className="space-y-4 pb-8"
+        >
+          <ModuleHeader
+            title="Estanques"
+            description="Selecciona un estanque para ver especies y calidad del agua."
+            action={
+              canManagePonds && (
+                <Dialog>
+                  <form>
+                    <DialogTrigger asChild>
+                      <Button className={primaryBtn}>
+                        <Plus className="w-4 h-4" />
+                        Agregar estanque
+                      </Button>
+                    </DialogTrigger>
 
-              <ButtonGroup>
-                <Input
-                  id="input-button-group"
-                  placeholder="Escriba el nombre del estanque..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Agregar estanque</DialogTitle>
 
-                <Button className="text-md">
-                  Buscar
-                </Button>
-              </ButtonGroup>
-            </Field>
-          </div>
+                        <DialogDescription>
+                          Escribe la información del estanque que vas a agregar. Haz
+                          click en crear cuando hayas terminado.
+                        </DialogDescription>
+                      </DialogHeader>
 
-          <div className="w-full sm:w-50">
+                      <PondRegisterForm
+                        op={1}
+                        idProp={""}
+                        idFarmProp={id}
+                        nombreProp={""}
+                        capacidadProp={""}
+                        areaProp={""}
+                        volumenProp={""}
+                        profundidadProp={""}
+                        descripcionProp={""}
+                      />
+                    </DialogContent>
+                  </form>
+                </Dialog>
+              )
+            }
+          />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <SearchBox
+              id="input-button-group"
+              label="Buscar estanque"
+              placeholder="Buscar por nombre del estanque..."
+              value={search}
+              onChange={setSearch}
+            />
+
             <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filtrar" />
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filtrar por estado" />
               </SelectTrigger>
 
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="all">
-                    Todos
-                  </SelectItem>
-
-                  <SelectItem value="active">
-                    Activo
-                  </SelectItem>
-
-                  <SelectItem value="inactive">
-                    Inactivo
-                  </SelectItem>
-
-                  <SelectItem value="cleaning">
-                    En Limpieza
-                  </SelectItem>
-
-                  <SelectItem value="in_use">
-                    En Uso
-                  </SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
+                  <SelectItem value="cleaning">En Limpieza</SelectItem>
+                  <SelectItem value="in_use">En Uso</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
           </div>
-        </div>
-      </div>
 
-      <div className="mt-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        <Ponds
-          id={id}
-          search={search}
-          filter={filter}
-        />
-      </div>
+          <Ponds
+            id={id}
+            search={search}
+            filter={filter}
+          />
+        </section>
 
-      {/* PLANES DE PRODUCCIÓN */}
-      <div className="mt-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto flex justify-between">
-          <div>
-            <h1 className="font-bold text-3xl">
-              Planes de Producción
-            </h1>
-
-            <p className="text-xl">
-              Define los parámetros esperados para el cultivo
-            </p>
-          </div>
-
-          {canManageCycles && (
-            <div>
-              <Dialog>
-                <form>
-                  <DialogTrigger asChild>
-                    <Button
-                      className="text-xl flex items-center gap-2 text-white rounded-xl bg-blue-600 px-4 py-5"
-                      variant="outline"
-                    >
-                      <Plus />
-                      Nuevo Plan
-                    </Button>
-                  </DialogTrigger>
-
-                  <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>
-                        Registrar Plan de Producción
-                      </DialogTitle>
-
-                      <DialogDescription>
-                        Complete los detalles del nuevo plan de producción.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <ProductionPlanForm
-                      op={1}
-                      farmProp={id}
-                    />
-                  </DialogContent>
-                </form>
-              </Dialog>
-            </div>
+        {/* ===== INVENTARIO (antes /inventory) ===== */}
+        <section
+          role="tabpanel"
+          id="panel-inventario"
+          aria-labelledby="tab-inventario"
+          hidden={tab !== "inventario"}
+          className="pb-8"
+        >
+          {tab === "inventario" && canManageInventory && (
+            <Suspense fallback={<div>Cargando...</div>}>
+              <InventoryContent farmId={id} />
+            </Suspense>
           )}
-        </div>
-      </div>
+        </section>
 
-      <div className="mt-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-4 sm:items-end sm:justify-between">
-          <div className="w-full sm:flex-1">
-            <Field className="text-xl">
-              <FieldLabel
-                htmlFor="input-search-plans"
-                className="text-xl"
-              >
-                Buscar Plan
-              </FieldLabel>
-
-              <ButtonGroup>
-                <Input
-                  id="input-search-plans"
-                  placeholder="Escriba el nombre del plan..."
-                  value={searchPlan}
-                  onChange={(e) => setSearchPlan(e.target.value)}
-                />
-
-                <Button className="text-md">
-                  Buscar
-                </Button>
-              </ButtonGroup>
-            </Field>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto pb-4">
-        <ProductionPlans
-          id={id}
-          search={searchPlan}
-        />
-      </div>
-
-
-      {/* LOTES */}
-      <div className="mt-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto flex justify-between">
-          <div>
-            <h1 className="font-bold text-3xl">
-              Lotes
-            </h1>
-
-            <p className="text-xl">
-              Gestiona los lotes de la granja (sin asociar a estanque)
-            </p>
-          </div>
-
-          {canManagePonds && (
-            <div>
-              <Dialog>
-                <form>
-                  <DialogTrigger asChild>
-                    <Button
-                      className="text-xl flex items-center gap-2 text-white rounded-xl bg-blue-600 px-4 py-5"
-                      variant="outline"
-                    >
-                      <Plus />
-                      Crear Lote
-                    </Button>
-                  </DialogTrigger>
-
-                  <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>
-                        Crear Lote
-                      </DialogTitle>
-
-                      <DialogDescription>
-                        Escribe la información del lote que vas a crear. Haz
-                        click en crear cuando hayas terminado.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <BatchRegisterForm
-                      op={1}
-                      idProp={""}
-                      idFarmProp={id}
-                      specieProp={""}
-                      biologicalStateProp={""}
-                      statusProp={""}
-                      initialQuantityProp={""}
-                      minWeightGProp={""}
-                      avgWeightGProp={""}
-                      maxWeightGProp={""}
-                      commentsProp={""}
-                    />
-                  </DialogContent>
-                </form>
-              </Dialog>
-            </div>
+        {/* ===== VENTAS (antes /sales) ===== */}
+        <section
+          role="tabpanel"
+          id="panel-ventas"
+          aria-labelledby="tab-ventas"
+          hidden={tab !== "ventas"}
+          className="pb-8"
+        >
+          {tab === "ventas" && canManageInventory && (
+            <Suspense fallback={<div>Cargando...</div>}>
+              <SalesContent farmId={id} />
+            </Suspense>
           )}
-        </div>
-      </div>
+        </section>
 
-      <div className="mt-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-4 sm:items-end sm:justify-between">
-          <div className="w-full sm:flex-1">
-            <Field className="text-xl">
-              <FieldLabel
-                htmlFor="input-search-batches"
-                className="text-xl"
-              >
-                Buscar Lote
-              </FieldLabel>
-
-              <ButtonGroup>
-                <Input
-                  id="input-search-batches"
-                  placeholder="Escriba el estado o tipo..."
-                  value={searchBatch}
-                  onChange={(e) =>
-                    setSearchBatch(e.target.value)
-                  }
-                />
-
-                <Button className="text-md">
-                  Buscar
-                </Button>
-              </ButtonGroup>
-            </Field>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto pb-12">
-        <Batches
-          id={id}
-          search={searchBatch}
-        />
+        {/* ===== PERSONAL (antes la página de Trabajadores) ===== */}
+        <section
+          role="tabpanel"
+          id="panel-personal"
+          aria-labelledby="tab-personal"
+          hidden={tab !== "personal"}
+          className="pb-8"
+        >
+          {tab === "personal" && canManageFarm && (
+            <FarmWorkers id={id} />
+          )}
+        </section>
       </div>
     </div>
   );

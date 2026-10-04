@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  ClipboardList,
+  Fish,
+  Layers,
+  CalendarDays,
+  TrendingDown,
+  Scale,
+  Repeat,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
@@ -13,6 +23,28 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Toaster, toast } from "sonner";
+
+/* ---------- Piezas visuales (sin lógica de negocio) ---------- */
+
+function Label({ icon: Icon, children }) {
+  return (
+    <FieldLabel className="flex items-center gap-2 text-sm font-medium text-slate-700">
+      <Icon className="h-4 w-4 text-blue-600" />
+      {children}
+    </FieldLabel>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
 
 export function ProductionPlanForm({
   op,
@@ -204,116 +236,128 @@ export function ProductionPlanForm({
   };
 
   return (
-    <FieldGroup>
-
-      <Field>
-        <FieldLabel>Nombre del Plan</FieldLabel>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Ej: Engorde Tilapia 2026"
-          required
-        />
-      </Field>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <FieldGroup className="gap-4">
+      {/* Información general */}
+      <Section title="Información general">
         <Field>
-          <FieldLabel>Especie</FieldLabel>
-          <Select onValueChange={setSpecie} value={specie} disabled={loadingSpecies || op === 2}>
-            <SelectTrigger>
-              <SelectValue placeholder={loadingSpecies ? "Cargando..." : "Seleccione especie"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {species.map((item) => (
-                  <SelectItem key={item.id} value={item.id.toString()}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field>
-          <FieldLabel>Tipo de Producción</FieldLabel>
-          <Select onValueChange={setType} value={type}>
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccione el tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="nursery">Cría (Nursery)</SelectItem>
-                <SelectItem value="growout">Engorde (Growout)</SelectItem>
-                <SelectItem value="breeding">Reproducción (Breeding)</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field>
-          <FieldLabel>Duración (Días)</FieldLabel>
+          <Label icon={ClipboardList}>Nombre del Plan</Label>
           <Input
-            type="number"
-            min="0"
-            value={totalDays}
-            onChange={(e) => setTotalDays(e.target.value)}
-            placeholder="Ej: 120"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ej: Engorde Tilapia 2026"
             required
+            className="bg-white"
           />
         </Field>
 
-        <Field>
-          <FieldLabel>Mortalidad Esperada (%)</FieldLabel>
-          <Input
-            type="number"
-            step="0.1"
-            min="0"
-            max="100"
-            value={mortalityRate}
-            onChange={(e) => setMortalityRate(e.target.value)}
-            placeholder="Ej: 8.5"
-            required
-          />
-        </Field>
-      </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <Label icon={Fish}>Especie</Label>
+            <Select onValueChange={setSpecie} value={specie} disabled={loadingSpecies || op === 2}>
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder={loadingSpecies ? "Cargando..." : "Seleccione especie"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {species.map((item) => (
+                    <SelectItem key={item.id} value={item.id.toString()}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field>
-          <FieldLabel>Peso Final (g)</FieldLabel>
-          <Input
-            type="number"
-            step="0.1"
-            min="0.1"
-            value={finalWeight}
-            onChange={(e) => setFinalWeight(e.target.value)}
-            placeholder="Ej: 450"
-            required
-          />
-        </Field>
+          <Field>
+            <Label icon={Layers}>Tipo de Producción</Label>
+            <Select onValueChange={setType} value={type}>
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="Seleccione el tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="nursery">Cría (Nursery)</SelectItem>
+                  <SelectItem value="growout">Engorde (Growout)</SelectItem>
+                  <SelectItem value="breeding">Reproducción (Breeding)</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </Section>
 
-        <Field>
-          <FieldLabel>Tasa de Reproducción (%)</FieldLabel>
-          <Input
-            type="number"
-            step="0.1"
-            min="0"
-            max="100"
-            value={reproductionRate}
-            onChange={(e) => setReproductionRate(e.target.value)}
-            placeholder="Ej: 5.0 (Opcional)"
-          />
-        </Field>
-      </div>
+      {/* Parámetros esperados */}
+      <Section title="Parámetros esperados">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <Label icon={CalendarDays}>Duración (Días)</Label>
+            <Input
+              type="number"
+              min="0"
+              value={totalDays}
+              onChange={(e) => setTotalDays(e.target.value)}
+              placeholder="Ej: 120"
+              required
+              className="bg-white"
+            />
+          </Field>
 
-      <Field orientation="horizontal" className="justify-end gap-3 mt-4">
+          <Field>
+            <Label icon={TrendingDown}>Mortalidad Esperada (%)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={mortalityRate}
+              onChange={(e) => setMortalityRate(e.target.value)}
+              placeholder="Ej: 8.5"
+              required
+              className="bg-white"
+            />
+          </Field>
+
+          <Field>
+            <Label icon={Scale}>Peso Final (g)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0.1"
+              value={finalWeight}
+              onChange={(e) => setFinalWeight(e.target.value)}
+              placeholder="Ej: 450"
+              required
+              className="bg-white"
+            />
+          </Field>
+
+          <Field>
+            <Label icon={Repeat}>Tasa de Reproducción (%)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={reproductionRate}
+              onChange={(e) => setReproductionRate(e.target.value)}
+              placeholder="Ej: 5.0 (Opcional)"
+              className="bg-white"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      <Field
+        orientation="horizontal"
+        className="mt-2 justify-end gap-3 border-t border-slate-100 pt-4"
+      >
         <Button
           type="button"
           onClick={op === 1 ? handleSubmit : handleEdit}
-          className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+          className="w-full gap-2 bg-blue-600 hover:bg-blue-700 sm:w-auto"
         >
+          <Check className="h-4 w-4" />
           {op === 1 ? "Crear Plan" : "Actualizar Plan"}
         </Button>
       </Field>
