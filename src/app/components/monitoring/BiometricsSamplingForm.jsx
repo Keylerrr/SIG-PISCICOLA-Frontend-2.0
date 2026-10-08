@@ -95,12 +95,23 @@ export function BiometricsSamplingForm({ farmId, pondId, cycleId, onSuccess, onC
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.error("Error payload:", errorData);
-                throw new Error(
-                    errorData.detail ||
-                    errorData.non_field_errors?.[0] ||
-                    errorData.message ||
-                    "Error al registrar la evaluación (probablemente ya existe una para esta fecha)."
-                );
+                // Prioritize detailed backend messages
+                let backendMessage = errorData.blockers?.join('\n')
+                    || (typeof errorData.detail === 'string' ? errorData.detail : undefined)
+                    || errorData.non_field_errors?.[0]
+                    || errorData.message;
+                // Handle field-specific validation errors
+                if (!backendMessage && typeof errorData === 'object') {
+                    const fieldMsgs = Object.entries(errorData)
+                        .filter(([_, v]) => Array.isArray(v))
+                        .map(([_, v]) => v.join(' '))
+                        .join(' ');
+                    if (fieldMsgs) backendMessage = fieldMsgs;
+                }
+                if (!backendMessage) {
+                    backendMessage = "Error al registrar la evaluación (probablemente ya existe una para esta fecha).";
+                }
+                throw new Error(backendMessage);
             }
 
             onSuccess();
