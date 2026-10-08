@@ -46,3 +46,4 @@ api*.md
 DOCUMENTACION_CICLOS_MONITORING.md
 HARVEST_API.md
 .pnpm-store/
+.scannerwork/

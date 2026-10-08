@@ -7,6 +7,14 @@ import { Loader2 } from "lucide-react";
 
 const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
+const getLocalDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
 export function BiometricsSamplingForm({ farmId, pondId, cycleId, onSuccess, onCancel }) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -31,6 +39,9 @@ export function BiometricsSamplingForm({ farmId, pondId, cycleId, onSuccess, onC
 
     const validate = () => {
         if (!formData.evaluation_date) return "La fecha es requerida.";
+        if (formData.evaluation_date > getLocalDateString()) {
+            return "No se pueden registrar biometrias en fechas futuras";
+        }
         
         const sampled = parseInt(formData.sampled_quantity, 10);
         if (isNaN(sampled) || sampled <= 0) return "La cantidad de muestra debe ser mayor a 0.";
