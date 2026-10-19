@@ -4,6 +4,7 @@ import {
   hasPermission,
   PERMISSIONS,
 } from "@/lib/permissions";
+import { usePermissions } from "@/lib/usePermissions";
 import { Suspense, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -235,26 +236,32 @@ export default function Granja({ params }) {
       });
   }, [id]);
 
-  const isFarmOwner = myMember?.is_owner;
+  const farmPermissions = usePermissions(id);
+
+  const isFarmOwner = farmPermissions.isOwner || myMember?.is_owner;
 
   const isProductor =
+    farmPermissions.isProductor ||
     userData?.role?.name === "Productor" ||
     userData?.role === "Productor" ||
     userData?.role?.name === "productor";
 
   const isAdmin =
+    farmPermissions.isAdmin ||
     userData?.role?.name === "Admin" ||
     userData?.role === "Admin" ||
     userData?.role?.name === "admin";
 
   // El Productor tiene acceso total si es miembro de la finca
   const hasFullAccess =
+    farmPermissions.hasFullAccess ||
     isAdmin ||
     (isProductor && myMember != null) ||
     isProductor;
 
   const canManagePonds =
     hasFullAccess ||
+    farmPermissions.canManagePonds ||
     isFarmOwner ||
     hasPermission(
       myPermissions,
@@ -263,6 +270,7 @@ export default function Granja({ params }) {
 
   const canManageCycles =
     hasFullAccess ||
+    farmPermissions.canManageCycle ||
     isFarmOwner ||
     hasPermission(
       myPermissions,
@@ -271,6 +279,7 @@ export default function Granja({ params }) {
 
   const canManageFarm =
     hasFullAccess ||
+    farmPermissions.canManageFarm ||
     isFarmOwner ||
     hasPermission(
       myPermissions,
@@ -279,6 +288,7 @@ export default function Granja({ params }) {
 
   const canManageInventory =
     hasFullAccess ||
+    farmPermissions.canManageInventory ||
     isFarmOwner ||
     hasPermission(
       myPermissions,
