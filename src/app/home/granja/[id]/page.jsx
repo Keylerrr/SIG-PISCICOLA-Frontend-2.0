@@ -5,6 +5,7 @@ import {
   PERMISSIONS,
 } from "@/lib/permissions";
 import { usePermissions } from "@/lib/usePermissions";
+import { buildApiUrl } from "@/lib/apiConfig";
 import { Suspense, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -147,7 +148,7 @@ export default function Granja({ params }) {
   useEffect(() => {
     const token = localStorage.getItem("access");
 
-    fetch("https://backend-pongase-trucha.onrender.com/api/departments/", {
+    fetch(buildApiUrl("/departments/"), {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -167,7 +168,7 @@ export default function Granja({ params }) {
   useEffect(() => {
     const token = localStorage.getItem("access");
 
-    fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${id}/`, {
+    fetch(buildApiUrl(`/farms/${id}/`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -185,7 +186,7 @@ export default function Granja({ params }) {
   }, [id]);
 
   useEffect(() => {
-    fetch("https://backend-pongase-trucha.onrender.com/api/cities/", {
+    fetch(buildApiUrl("/cities/"), {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("access")}`,
       },
@@ -213,19 +214,16 @@ export default function Granja({ params }) {
       }
     } catch (e) {}
 
-    fetch(
-      `https://backend-pongase-trucha.onrender.com/api/farms/${id}/members/`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    )
+    fetch(buildApiUrl(`/farms/${id}/members/`), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
           const me = data.find(
-            (member) => member.user.id === userId
+            (member) => member.user?.id === userId
           );
 
           if (me) {
@@ -252,12 +250,11 @@ export default function Granja({ params }) {
     userData?.role === "Admin" ||
     userData?.role?.name === "admin";
 
-  // El Productor tiene acceso total si es miembro de la finca
+  // El acceso total corresponde al administrador o al productor propietario de esta granja
   const hasFullAccess =
     farmPermissions.hasFullAccess ||
     isAdmin ||
-    (isProductor && myMember != null) ||
-    isProductor;
+    isFarmOwner;
 
   const canManagePonds =
     hasFullAccess ||
@@ -295,6 +292,25 @@ export default function Granja({ params }) {
       PERMISSIONS.MANAGE_INVENTORY
     );
 
+  const canManageUsers =
+    hasFullAccess ||
+    farmPermissions.canManageUsers ||
+    isFarmOwner ||
+    hasPermission(
+      myPermissions,
+      PERMISSIONS.MANAGE_USERS
+    ) ||
+    hasPermission(
+      myPermissions,
+      PERMISSIONS.MANAGE_FARM
+    );
+
+  const canAccessPersonal =
+    canManageUsers ||
+    canManageFarm ||
+    farmPermissions.canViewAuditLogs ||
+    farmPermissions.canViewAlerts;
+
   /* Pestañas principales.
      - "panel": se muestra dentro de esta página.
      - "href": abre la ruta existente (las rutas no cambian).
@@ -316,9 +332,9 @@ export default function Granja({ params }) {
     },
     {
       key: "personal",
-      label: "Personal",
+      label: "Personal y Permisos",
       icon: UserCog,
-      visible: canManageFarm,
+      visible: canAccessPersonal,
     },
   ];
 
@@ -740,7 +756,7 @@ export default function Granja({ params }) {
           hidden={tab !== "personal"}
           className="pb-8"
         >
-          {tab === "personal" && canManageFarm && (
+          {tab === "personal" && canAccessPersonal && (
             <FarmWorkers id={id} />
           )}
         </section>

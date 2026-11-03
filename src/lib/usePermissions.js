@@ -22,7 +22,9 @@ export function usePermissions(farmId) {
     farmRole: null,
     roleData: null,
     appPermissions: [],
+    particularPermissions: [],
     legacyPermissions: [],
+    currentMember: null,
     loading: true,
   });
 
@@ -51,7 +53,9 @@ export function usePermissions(farmId) {
             farmRole: null,
             roleData: null,
             appPermissions: [],
+            particularPermissions: [],
             legacyPermissions: [],
+            currentMember: null,
             loading: false,
           });
         }
@@ -59,7 +63,7 @@ export function usePermissions(farmId) {
       }
 
       try {
-        // Obtenemos los miembros de la granja
+        // Obtenemos los miembros de la granja actual de forma estrictamente aislada
         const members = await getFarmMembers(farmId, token);
         const me = Array.isArray(members)
           ? members.find((member) => member?.user?.id === user?.id)
@@ -67,33 +71,70 @@ export function usePermissions(farmId) {
 
         const isFarmMember = Boolean(me);
         const isOwner = Boolean(me?.is_owner);
+        const isActive = me ? me.status === "active" : false;
 
         let roleData = null;
         let appPermissions = [];
-        let legacyPermissions = Array.isArray(me?.permissions) ? me.permissions : [];
+        let particularPermissions = [];
+        let legacyPermissions = [];
 
-        // Si el miembro tiene app_permissions directamente en su objeto
-        if (Array.isArray(me?.app_permissions)) {
-          appPermissions = me.app_permissions;
-        }
+        // Si la membresía está activa (o el usuario es admin/propietario)
+        if (isAdmin || isOwner || isActive) {
+          if (Array.isArray(me?.permissions)) {
+            particularPermissions = [...me.permissions];
+            legacyPermissions = [...me.permissions];
+          }
 
-        // Si tiene un farm_role asignado, buscamos el rol y sus permisos
-        if (me?.farm_role) {
-          try {
-            const roles = await getFarmRoles(farmId, token);
-            if (Array.isArray(roles)) {
-              roleData = roles.find((r) => r.id === me.farm_role) || null;
-              if (roleData) {
-                if (Array.isArray(roleData.app_permissions) && appPermissions.length === 0) {
-                  appPermissions = roleData.app_permissions;
-                }
-                if (Array.isArray(roleData.permissions) && legacyPermissions.length === 0) {
-                  legacyPermissions = roleData.permissions;
+          if (Array.isArray(me?.app_permissions)) {
+            appPermissions = [...me.app_permissions];
+          }
+
+          // Si tiene un farm_role asignado, cargamos el rol y sus permisos de la granja
+          if (me?.farm_role) {
+            try {
+              const roles = await getFarmRoles(farmId, token);
+              if (Array.isArray(roles)) {
+                roleData = roles.find((r) => r.id === me.farm_role) || null;
+                if (roleData) {
+                  if (Array.isArray(roleData.app_permissions)) {
+                    // Combinar app_permissions evitando duplicados
+                    const existingApps = new Set(
+                      appPermissions.map((p) => p.app)
+                    );
+                    for (const rolePerm of roleData.app_permissions) {
+                      if (!existingApps.has(rolePerm.app)) {
+                        appPermissions.push(rolePerm);
+                      }
+                    }
+                  }
+
+                  // Regla crítica: Un rol configurado con app_permissions no autoriza operaciones
+                  // mediante permissions heredados ni hereda MANAGE_USERS ni MANAGE_FARM.
+                  // Si el rol es antiguo y carece de app_permissions, solo entonces se consideran permisos heredados.
+                  const isConfiguredRole =
+                    Array.isArray(roleData.app_permissions) &&
+                    roleData.app_permissions.length > 0;
+
+                  if (
+                    !isConfiguredRole &&
+                    Array.isArray(roleData.permissions)
+                  ) {
+                    const setLeg = new Set(legacyPermissions);
+                    for (const p of roleData.permissions) {
+                      if (
+                        p !== PERMISSIONS.MANAGE_USERS &&
+                        p !== PERMISSIONS.MANAGE_FARM
+                      ) {
+                        setLeg.add(p);
+                      }
+                    }
+                    legacyPermissions = Array.from(setLeg);
+                  }
                 }
               }
+            } catch (roleErr) {
+              console.error("Error al cargar roles de la granja:", roleErr);
             }
-          } catch (roleErr) {
-            console.error("Error al cargar roles de la granja:", roleErr);
           }
         }
 
@@ -106,7 +147,9 @@ export function usePermissions(farmId) {
             farmRole: me?.farm_role || null,
             roleData,
             appPermissions,
+            particularPermissions,
             legacyPermissions,
+            currentMember: me,
             loading: false,
           });
         }
@@ -120,7 +163,9 @@ export function usePermissions(farmId) {
             farmRole: null,
             roleData: null,
             appPermissions: [],
+            particularPermissions: [],
             legacyPermissions: [],
+            currentMember: null,
             loading: false,
           });
         }
@@ -134,15 +179,13 @@ export function usePermissions(farmId) {
     };
   }, [farmId]);
 
-  // Evaluaciones de acceso completo
+  // Evaluaciones de acceso completo:
+  // - Administrador global conserva privilegios globales.
+  // - El productor propietario conserva la administración de su propia granja (is_owner: true).
+  // - El rol global 'Productor' por sí solo NO otorga acceso total si no es propietario de esta granja.
   const hasFullAccess = useMemo(() => {
-    return (
-      state.isAdmin ||
-      state.isOwner ||
-      (state.isProductor && state.isFarmMember) ||
-      state.isProductor
-    );
-  }, [state.isAdmin, state.isOwner, state.isProductor, state.isFarmMember]);
+    return state.isAdmin || state.isOwner;
+  }, [state.isAdmin, state.isOwner]);
 
   // Verificador genérico por app y acción
   const can = useCallback(
@@ -158,7 +201,38 @@ export function usePermissions(farmId) {
   const canEdit = useCallback((appKey) => can(appKey, "edit"), [can]);
   const canDelete = useCallback((appKey) => can(appKey, "delete"), [can]);
 
-  // Permisos de alto nivel para retrocompatibilidad con las páginas existentes
+  // Gestión de usuarios y miembros:
+  // Requiere ser propietario/admin o tener explícitamente MANAGE_USERS / MANAGE_FARM en los permisos particulares.
+  const canManageUsers = useMemo(() => {
+    if (hasFullAccess) return true;
+    return (
+      hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_USERS) ||
+      hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
+    );
+  }, [hasFullAccess, state.particularPermissions]);
+
+  // Módulo de Auditoría por granja (core_auditlogs):
+  // Exclusivo de consulta por app_permissions o permisos generales
+  const canViewAuditLogs = useMemo(() => {
+    if (hasFullAccess) return true;
+    return (
+      hasAppPermission(state.appPermissions, "core_auditlogs", "view") ||
+      hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_USERS) ||
+      hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
+    );
+  }, [hasFullAccess, state.appPermissions, state.particularPermissions]);
+
+  // Módulo de Alertas por granja (core_alerts):
+  // Permiso independiente en app_permissions
+  const canViewAlerts = useMemo(() => {
+    if (hasFullAccess) return true;
+    return (
+      hasAppPermission(state.appPermissions, "core_alerts", "view") ||
+      hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
+    );
+  }, [hasFullAccess, state.appPermissions, state.particularPermissions]);
+
+  // Permisos por módulo de la granja (retrocompatibilidad)
   const canManageCycle = useMemo(() => {
     if (hasFullAccess) return true;
     return (
@@ -260,6 +334,11 @@ export function usePermissions(farmId) {
     canEdit,
     canDelete,
     hasAppPermission: can,
+    particularPermissions: state.particularPermissions,
+    memberPermissions: state.particularPermissions,
+    canManageUsers,
+    canViewAuditLogs,
+    canViewAlerts,
     canManageCycle,
     canManagePonds,
     canManageInventory,

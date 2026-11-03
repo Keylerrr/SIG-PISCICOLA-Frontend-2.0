@@ -4,6 +4,7 @@ export const PERMISSIONS = {
   MANAGE_CYCLE: "MANAGE_CYCLE",
   MANAGE_POND: "MANAGE_POND",
   MANAGE_FARM: "MANAGE_FARM",
+  MANAGE_USERS: "MANAGE_USERS",
 };
 
 const hierarchy = {
@@ -12,6 +13,7 @@ const hierarchy = {
     "MANAGE_CYCLE",
     "MANAGE_REVIEWS",
     "MANAGE_INVENTORY",
+    "MANAGE_USERS",
   ],
 
   MANAGE_POND: [
@@ -75,10 +77,28 @@ export function hasAppPermission(appPermissions = [], appKey, action = "view") {
 
   const normalizedAction = String(action || "view").toLowerCase();
 
+  // core_alerts y core_auditlogs son permisos independientes y solamente aceptan can_view
+  if (key === "core_alerts" || key === "core_auditlogs") {
+    if (
+      normalizedAction === "view" ||
+      normalizedAction === "read" ||
+      normalizedAction === "get" ||
+      normalizedAction === "head" ||
+      normalizedAction === "options" ||
+      normalizedAction === "manage" ||
+      normalizedAction === "any"
+    ) {
+      return Boolean(perm.can_view);
+    }
+    return false;
+  }
+
   switch (normalizedAction) {
     case "view":
     case "read":
     case "get":
+    case "head":
+    case "options":
       return Boolean(perm.can_view);
 
     case "create":
@@ -156,6 +176,26 @@ export function canAccessModule({
     harvest: {
       apps: ["harvest", "cosecha", "production"],
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
+    },
+    users: {
+      apps: ["users", "members"],
+      legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
+    },
+    personal: {
+      apps: ["users", "members"],
+      legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
+    },
+    audit: {
+      apps: ["core_auditlogs"],
+      legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
+    },
+    auditlogs: {
+      apps: ["core_auditlogs"],
+      legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
+    },
+    alerts: {
+      apps: ["core_alerts"],
+      legacy: [],
     },
   };
 
