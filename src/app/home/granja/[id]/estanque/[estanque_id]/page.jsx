@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Zap, History } from "lucide-react";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import { ArrowLeft, Loader2, RotateCcw } from "lucide-react";
 import { Batches } from "@/app/components/batches/batches";
 import { Cycles } from "@/app/components/cycles/cycles";
 import { usePermissions } from "@/lib/usePermissions";
+import { clearSession } from "@/lib/auth";
+import { EntityNotFound, LoadError } from "@/components/states/ResourceState";
 
 const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
@@ -41,6 +43,10 @@ const TYPE_LABELS = {
 export default function Estanque() {
     const { estanque_id, id } = useParams();
     const [estanque, setEstanque] = useState(null);
+    // D-04: estado explícito de la carga del estanque
+    const [pondStatus, setPondStatus] = useState("loading"); // loading | ready | not_found | error
+    const [reloadTick, setReloadTick] = useState(0);
+    const router = useRouter();
     const [batchTab, setBatchTab] = useState("active");
     const permissions = usePermissions(id);
 
@@ -48,7 +54,9 @@ export default function Estanque() {
 
     useEffect(() => {
         if (!id || !estanque_id) return;
+        let cancelled = false;
         const fetchEstanque = async () => {
+            setPondStatus("loading");
             try {
                 const token = localStorage.getItem("access");
                 const res = await fetch(`${API_BASE}/farms/${id}/ponds/${estanque_id}/`, {
@@ -57,20 +65,46 @@ export default function Estanque() {
                         Authorization: `Bearer ${token}`,
                     },
                 });
+                if (cancelled) return;
+
+                if (res.status === 401) {
+                    // sesión revocada o vencida en el servidor
+                    clearSession();
+                    router.replace("/login");
+                    return;
+                }
+                // 404: no existe; 403/400: sin acceso o id inválido
+                if ([400, 403, 404].includes(res.status)) {
+                    setEstanque(null);
+                    setPondStatus("not_found");
+                    return;
+                }
                 if (!res.ok) throw new Error(`Error ${res.status}`);
-                setEstanque(await res.json());
+
+                const data = await res.json();
+                if (cancelled) return;
+                if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+                    setPondStatus("not_found");
+                    return;
+                }
+                setEstanque(data);
+                setPondStatus("ready");
             } catch (err) {
                 console.error("Error cargando estanque:", err);
+                if (!cancelled) setPondStatus("error");
             }
         };
         fetchEstanque();
-    }, [id, estanque_id]);
+        return () => {
+            cancelled = true;
+        };
+    }, [id, estanque_id, reloadTick, router]);
 
     return (
         <div className="min-h-screen bg-slate-50">
 
             {/* ── Loading overlay ── */}
-            {!estanque && (
+            {pondStatus === "loading" && (
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm">
                     <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center">
                         <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
@@ -88,6 +122,21 @@ export default function Estanque() {
                 >
                     <ArrowLeft className="w-4 h-4" /> Volver a la Granja
                 </Link>
+
+                {pondStatus === "not_found" && (
+                    <EntityNotFound
+                        entity="estanque"
+                        backHref={`/home/granja/${id}/`}
+                        backLabel="Volver a la granja"
+                    />
+                )}
+
+                {pondStatus === "error" && (
+                    <LoadError
+                        message="No se pudo cargar el estanque. Revisa tu conexión e inténtalo de nuevo."
+                        onRetry={() => setReloadTick((n) => n + 1)}
+                    />
+                )}
 
                 {/* ══════════════════════════════════════
                     1. INFORMACIÓN DEL ESTANQUE

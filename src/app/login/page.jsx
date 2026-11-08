@@ -12,6 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GuestGuard } from "@/components/auth/AuthGuard";
+import { clearSession, getReasonMessage, getSafeNext } from "@/lib/auth";
+import { clearFailedLogins, registerFailedLogin, resolveLoginError } from "@/lib/loginErrors";
 import {
   Field,
   FieldGroup,
@@ -29,10 +32,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
-export default function Login() {
+function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState(false);
+  const [loginError, setLoginError] = useState(null); // { type, message } | null
+  // Motivo por el que te trajeron al login (?reason=missing|expired|revoked)
+  const [sessionNotice, setSessionNotice] = useState(() =>
+    typeof window === "undefined"
+      ? null
+      : getReasonMessage(new URLSearchParams(window.location.search).get("reason"))
+  );
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const [recoverEmail, setRecoverEmail] = useState('');
@@ -81,7 +90,7 @@ export default function Login() {
   };
 
   const handleUser = async () => {
-    setLoginError(false);
+    setLoginError(null);
     setIsLoading(true);
 
     try {
@@ -99,18 +108,26 @@ export default function Login() {
       const data2 = await res2.json();
 
       if (!res2.ok) {
-        setLoginError(true);
+        // No dejar una sesión a medias: el login funcionó pero el perfil no se pudo leer
+        clearSession();
+        setLoginError({
+          type: "other",
+          message:
+            res2.status === 403
+              ? "Tu cuenta no tiene permisos para ingresar a la aplicación. Contacta al administrador."
+              : "No se pudo cargar tu perfil. Inténtalo de nuevo.",
+        });
         setIsLoading(false);
         return;
       }
 
       localStorage.setItem("user", JSON.stringify(data2));
       setIsLoading(false);
-      router.push("/home");
+      router.replace(getSafeNext(new URLSearchParams(window.location.search).get("next")));
     }
     catch (error) {
       console.error("Error en el login:", error);
-      setLoginError(true);
+      setLoginError({ type: "network", message: "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo." });
       setIsLoading(false);
     }
   }
@@ -118,7 +135,8 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    setLoginError(false);
+    setLoginError(null);
+    setSessionNotice(null);
     setIsLoading(true);
 
     try {
@@ -139,11 +157,14 @@ export default function Login() {
       const data = await res.json();
 
       if (!res.ok) {
-        setLoginError(true);
+        // D-07: cuenta el intento y distingue "credenciales incorrectas" de "cuenta bloqueada"
+        registerFailedLogin(email);
+        setLoginError(resolveLoginError({ status: res.status, payload: data }, email));
         setIsLoading(false);
         return;
       }
 
+      clearFailedLogins(email);
       localStorage.setItem("access", data.tokens.access);
       localStorage.setItem("refresh", data.tokens.refresh);
 
@@ -158,7 +179,7 @@ export default function Login() {
     }
     catch (error) {
       console.error("Error en el login:", error);
-      setLoginError(true);
+      setLoginError(resolveLoginError(error, email));
       setIsLoading(false);
     }
   };
@@ -319,13 +340,24 @@ export default function Login() {
         <h1 className="text-3xl font-bold text-center mb-2 text-slate-800">Póngase Trucha</h1>
         <p className="text-center text-slate-600 mb-4">Gestión de Acuicultura</p>
 
-        {loginError && (
-          <Alert variant="destructive" className="max-w-md mb-4">
+        {sessionNotice && !loginError && (
+          <Alert className="max-w-md mb-4 border-amber-300 bg-amber-50 text-amber-900">
             <AlertCircleIcon />
-            <AlertTitle>Inicio de sesion fallido :(</AlertTitle>
-            <AlertDescription>
-              No se pudo iniciar sesion. Revisa tus credenciales.
-            </AlertDescription>
+            <AlertTitle>Sesión finalizada</AlertTitle>
+            <AlertDescription>{sessionNotice}</AlertDescription>
+          </Alert>
+        )}
+
+        {loginError && (
+          <Alert
+            variant={loginError.type === "locked" ? "default" : "destructive"}
+            className={`max-w-md mb-4 ${loginError.type === "locked" ? "border-amber-300 bg-amber-50 text-amber-900" : ""}`}
+          >
+            {loginError.type === "locked" ? <Lock /> : <AlertCircleIcon />}
+            <AlertTitle>
+              {loginError.type === "locked" ? "Cuenta bloqueada temporalmente" : "Inicio de sesión fallido"}
+            </AlertTitle>
+            <AlertDescription>{loginError.message}</AlertDescription>
           </Alert>
         )}
 
@@ -446,5 +478,14 @@ export default function Login() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // D-03: si ya hay una sesión válida, no muestra el formulario y redirige a /home
+  return (
+    <GuestGuard>
+      <Login />
+    </GuestGuard>
   );
 }

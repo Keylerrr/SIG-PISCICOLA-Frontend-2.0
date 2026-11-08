@@ -6,6 +6,8 @@ import {
 } from "@/lib/permissions";
 import { usePermissions } from "@/lib/usePermissions";
 import { buildApiUrl } from "@/lib/apiConfig";
+import { clearSession } from "@/lib/auth";
+import { EntityNotFound, LoadError } from "@/components/states/ResourceState";
 import { Suspense, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -108,6 +110,9 @@ export default function Granja({ params }) {
   const { id } = use(params);
 
   const [granja, setGranja] = useState([]);
+  // D-04: estado explícito de la carga de la granja
+  const [farmStatus, setFarmStatus] = useState("loading"); // loading | ready | not_found | error
+  const [farmReload, setFarmReload] = useState(0);
   const [departamentos, setDepartmentos] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
@@ -168,6 +173,9 @@ export default function Granja({ params }) {
   useEffect(() => {
     const token = localStorage.getItem("access");
 
+    let cancelled = false;
+    setFarmStatus("loading");
+
     fetch(buildApiUrl(`/farms/${id}/`), {
       method: "GET",
       headers: {
@@ -175,15 +183,40 @@ export default function Granja({ params }) {
         Authorization: `Bearer ${token}`,
       },
     })
-      .then((res) => {
-        if (!res.ok) throw new Error("Error al cargar granja");
-        return res.json();
-      })
-      .then((data) => {
+      .then(async (res) => {
+        if (cancelled) return;
+
+        if (res.status === 401) {
+          // sesión revocada o vencida en el servidor
+          clearSession();
+          router.replace("/login");
+          return;
+        }
+        // 404: no existe; 403/400: sin acceso o id inválido
+        if ([400, 403, 404].includes(res.status)) {
+          setFarmStatus("not_found");
+          return;
+        }
+        if (!res.ok) throw new Error(`Error ${res.status} al cargar granja`);
+
+        const data = await res.json();
+        if (cancelled) return;
+        if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+          setFarmStatus("not_found");
+          return;
+        }
         setGranja(data);
+        setFarmStatus("ready");
       })
-      .catch((err) => console.error(err));
-  }, [id]);
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setFarmStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, farmReload, router]);
 
   useEffect(() => {
     fetch(buildApiUrl("/cities/"), {
@@ -350,12 +383,12 @@ export default function Granja({ params }) {
 
   return (
     <div className="relative min-h-screen bg-slate-50">
-      {granja.length === 0 && departamentos.length === 0 && (
+      {farmStatus === "loading" && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center">
             <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
             <p className="mt-4 font-medium text-slate-700">
-              Cargando estanques...
+              Cargando granja...
             </p>
           </div>
         </div>
@@ -371,6 +404,23 @@ export default function Granja({ params }) {
           Volver a la Página de Inicio
         </a>
 
+        {farmStatus === "not_found" && (
+          <EntityNotFound
+            entity="granja"
+            backHref="/home"
+            backLabel="Volver a mis granjas"
+          />
+        )}
+
+        {farmStatus === "error" && (
+          <LoadError
+            message="No se pudo cargar la granja. Revisa tu conexión e inténtalo de nuevo."
+            onRetry={() => setFarmReload((n) => n + 1)}
+          />
+        )}
+
+        {farmStatus === "ready" && (
+        <>
         {/* CABECERA DE LA GRANJA */}
         <header className="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
@@ -760,6 +810,8 @@ export default function Granja({ params }) {
             <FarmWorkers id={id} />
           )}
         </section>
+        </>
+        )}
       </div>
     </div>
   );
