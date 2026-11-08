@@ -53,6 +53,8 @@ import {
   getFarmMembers,
   updateFarmMember,
   removeFarmMember,
+  addMemberPersonalPermission,
+  removeMemberPersonalPermission,
   sendOperarioInvitation,
   getFarmInvitations,
   getFarmAuditLogs,
@@ -61,47 +63,118 @@ import {
   getFarmAlert,
 } from "@/lib/roleService";
 import { usePermissions } from "@/lib/usePermissions";
-import { PERMISSIONS } from "@/lib/permissions";
 
-// Permisos particulares disponibles directamente para la membresía de cada usuario
-const AVAILABLE_MEMBER_PERMISSIONS = [
-  {
-    key: PERMISSIONS.MANAGE_USERS,
-    label: "Gestionar Usuarios (MANAGE_USERS)",
-    description:
-      "Permite administrar miembros, roles locales e invitaciones en esta granja.",
-  },
-  {
-    key: PERMISSIONS.MANAGE_FARM,
-    label: "Control Total de Granja (MANAGE_FARM)",
-    description:
-      "Incluye todos los demás permisos generales (estanques, ciclos, inventario, usuarios).",
-  },
-  {
-    key: PERMISSIONS.MANAGE_INVENTORY,
-    label: "Gestionar Inventario (MANAGE_INVENTORY)",
-    description:
-      "Administra productos, insumos, compras y movimientos de inventario.",
-  },
-  {
-    key: PERMISSIONS.MANAGE_CYCLE,
-    label: "Gestionar Ciclos (MANAGE_CYCLE)",
-    description:
-      "Administra planes de producción, ciclos de cultivo y lotes.",
-  },
-  {
-    key: PERMISSIONS.MANAGE_POND,
-    label: "Gestionar Estanques (MANAGE_POND)",
-    description:
-      "Administra estanques, preparación, limpieza y parámetros físicos.",
-  },
-  {
-    key: PERMISSIONS.MANAGE_REVIEWS,
-    label: "Gestionar Revisiones (MANAGE_REVIEWS)",
-    description:
-      "Supervisa mediciones del agua, calidad ambiental y muestreos de peces.",
-  },
-];
+const PERSONAL_PERMISSION_OPERATIONS = ["view", "create", "update", "delete"];
+
+const MODULE_LABELS = {
+  production_batches: "Lotes de producción",
+  production_cycles: "Ciclos de producción",
+  farm_events: "Eventos de la granja",
+  feeding_management: "Gestión de alimentación",
+  harvest_management: "Gestión de cosechas",
+  fish_health: "Salud de los peces",
+  water_quality_monitoring: "Calidad del agua",
+  pond_management: "Gestión de estanques",
+  inventory_products: "Inventario de productos",
+  inventory_purchases: "Compras",
+  inventory_sales: "Ventas",
+  species_catalog: "Catálogo de especies",
+  farm_management: "Administración de la granja",
+  alerts: "Alertas",
+  audit_logs: "Auditoría",
+  user_administration: "Administración de usuarios",
+};
+
+const ACTION_LABELS = {
+  view: "Ver",
+  create: "Crear",
+  update: "Editar",
+  delete: "Eliminar",
+};
+
+const getModuleLabel = (module, apiName) =>
+  MODULE_LABELS[module] || apiName || module;
+
+const getActionLabel = (action) =>
+  ACTION_LABELS[action] || action;
+
+const AUDIT_TYPE_LABELS = {
+  All: "Todos los tipos",
+  User: "Usuario",
+  UserFarm: "Usuario de la finca",
+  Farm: "Finca",
+  FarmRole: "Rol de finca",
+  Pond: "Estanque",
+  UserFarmPond: "Personal de estanque",
+  Product: "Producto",
+  Supplier: "Proveedor",
+  Specie: "Especie",
+  Cycle: "Ciclo",
+  Harvest: "Cosecha",
+  Alert: "Alerta",
+  Sale: "Venta",
+  Client: "Cliente",
+  Buy: "Compra",
+  Invitation: "Invitación",
+  ProductionPlan: "Plan de producción",
+  InventoryMovement: "Movimiento de inventario",
+};
+
+const AUDIT_FIELD_LABELS = {
+  name: "Nombre",
+  status: "Estado",
+  description: "Descripción",
+  email: "Correo electrónico",
+  farm_role_id: "Rol de la finca",
+  role_id: "Rol",
+  user_id: "Usuario",
+  farm_id: "Finca",
+  pond_id: "Estanque",
+  phone: "Teléfono",
+  active: "Activo",
+  is_active: "Activo",
+};
+
+const getAuditTypeLabel = (type) =>
+  AUDIT_TYPE_LABELS[type] || type || "Tipo desconocido";
+
+const getAuditFieldLabel = (field) =>
+  AUDIT_FIELD_LABELS[field] || String(field || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const formatAuditValue = (value) => {
+  if (value === null || value === undefined || value === "") return "Ninguno";
+  if (typeof value === "boolean") return value ? "Sí" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+};
+
+const getAuditChanges = (log) => {
+  if (Array.isArray(log?.detail?.changes) && log.detail.changes.length > 0) {
+    return log.detail.changes.map((change) => ({
+      field: change.field || change.label || "Cambio",
+      label: change.label || getAuditFieldLabel(change.field),
+      before: change.before,
+      after: change.after,
+    }));
+  }
+
+  const oldValues =
+    log?.old_values && typeof log.old_values === "object" ? log.old_values : {};
+  const newValues =
+    log?.new_values && typeof log.new_values === "object" ? log.new_values : {};
+  const fields = [...new Set([...Object.keys(oldValues), ...Object.keys(newValues)])];
+
+  return fields
+    .filter((field) => JSON.stringify(oldValues[field]) !== JSON.stringify(newValues[field]))
+    .map((field) => ({
+      field,
+      label: getAuditFieldLabel(field),
+      before: oldValues[field] ?? null,
+      after: newValues[field] ?? null,
+    }));
+};
 
 // Tipos de entidades de auditoría admitidos para filtros
 const AUDIT_TYPE_SOURCES = [
@@ -110,6 +183,7 @@ const AUDIT_TYPE_SOURCES = [
   "UserFarm",
   "Farm",
   "FarmRole",
+  "FarmRoleAppPermission",
   "Pond",
   "UserFarmPond",
   "TypeProduct",
@@ -169,6 +243,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
   const [apps, setApps] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [auditCount, setAuditCount] = useState(0);
   const [alerts, setAlerts] = useState([]);
 
   // Estados de carga independientes
@@ -191,6 +266,8 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
   const [memberStatus, setMemberStatus] = useState("active");
   const [memberParticularPerms, setMemberParticularPerms] = useState([]);
   const [isSavingMember, setIsSavingMember] = useState(false);
+  const [personalPermissionModule, setPersonalPermissionModule] = useState("");
+  const [personalPermissionOperation, setPersonalPermissionOperation] = useState("view");
 
   // Confirmación para retirar miembro
   const [deleteMemberTarget, setDeleteMemberTarget] = useState(null);
@@ -220,8 +297,16 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
   /* -------------------------------------------------------------------------
      MODALES Y FILTROS PARA AUDITORÍA
      ------------------------------------------------------------------------- */
-  const [auditSearch, setAuditSearch] = useState("");
   const [auditSourceFilter, setAuditSourceFilter] = useState("All");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
+  const [auditOriginId, setAuditOriginId] = useState("");
+  const [auditUserFilter, setAuditUserFilter] = useState("");
+  const [auditIpFilter, setAuditIpFilter] = useState("");
+  const [appliedAuditFilters, setAppliedAuditFilters] = useState({});
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditNext, setAuditNext] = useState(null);
+  const [auditPrevious, setAuditPrevious] = useState(null);
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
   const [auditDetailOpen, setAuditDetailOpen] = useState(false);
 
@@ -302,13 +387,19 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
         }
       } else if (activeTab === "audit") {
         try {
-          const data = await getFarmAuditLogs(id);
+          const data = await getFarmAuditLogs(id, {
+            ...appliedAuditFilters,
+            page: auditPage,
+          });
           if (!mounted) return;
-          setAuditLogs(Array.isArray(data) ? data : []);
+          setAuditLogs(Array.isArray(data?.results) ? data.results : []);
+          setAuditCount(Number(data?.count ?? data?.results?.length ?? 0));
+          setAuditNext(data?.next || null);
+          setAuditPrevious(data?.previous || null);
         } catch (err) {
           if (!mounted) return;
           console.error("Error cargando auditoría de la granja:", err);
-          toast.error("Error al consultar el registro de auditoría");
+          toast.error(err?.message || "Error al consultar el registro de auditoría");
         } finally {
           if (mounted) setLoadingTab(false);
         }
@@ -332,7 +423,14 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
     return () => {
       mounted = false;
     };
-  }, [id, activeTab, alertFilters, refreshKey]);
+  }, [
+    id,
+    activeTab,
+    alertFilters,
+    appliedAuditFilters,
+    auditPage,
+    refreshKey,
+  ]);
 
   // Diccionario de nombres legibles para las aplicaciones dinámicas
   const appNamesMap = useMemo(() => {
@@ -376,7 +474,9 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
     setMemberStatus(member.status || "active");
     setMemberRole(extractRoleId(member.farm_role));
     setMemberParticularPerms(
-      Array.isArray(member.permissions) ? [...member.permissions] : []
+      Array.isArray(member.personal_permissions)
+        ? [...member.personal_permissions]
+        : []
     );
     setMemberModalOpen(true);
   };
@@ -403,14 +503,6 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
           payload.farm_role = memberRole;
         }
 
-        const initialPerms = Array.isArray(editingMember.permissions)
-          ? [...editingMember.permissions].sort()
-          : [];
-        const currentPerms = Array.from(new Set(memberParticularPerms)).sort();
-
-        if (JSON.stringify(initialPerms) !== JSON.stringify(currentPerms)) {
-          payload.permissions = Array.from(new Set(memberParticularPerms));
-        }
       }
 
       // Si no se modificó ningún campo, solo cerramos
@@ -433,6 +525,108 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
       toast.error(err.message || "Error al actualizar miembro");
     } finally {
       setIsSavingMember(false);
+    }
+  };
+
+  const handleAddPersonalPermission = async () => {
+    if (
+      !editingMember?.user?.id ||
+      !personalPermissionModule ||
+      !availableOperationsForSelectedModule.includes(personalPermissionOperation)
+    ) return;
+    try {
+      await addMemberPersonalPermission(id, editingMember.user.id, {
+        module: personalPermissionModule,
+        operation: personalPermissionOperation,
+      });
+      const updated = await getFarmMembers(id);
+      setWorkers(Array.isArray(updated) ? updated : []);
+      const refreshed = (Array.isArray(updated) ? updated : []).find(
+        (member) => member.user?.id === editingMember.user.id
+      );
+      if (refreshed) {
+        setEditingMember(refreshed);
+        setMemberParticularPerms(refreshed.personal_permissions || []);
+      }
+      toast.success("Permiso personalizado agregado");
+    } catch (err) {
+      toast.error(err.message || "Error al agregar permiso personalizado");
+    }
+  };
+
+  const handleRemovePersonalPermission = async (permissionId) => {
+    if (!editingMember?.user?.id) return;
+    try {
+      await removeMemberPersonalPermission(
+        id,
+        editingMember.user.id,
+        permissionId
+      );
+      const updated = await getFarmMembers(id);
+      setWorkers(Array.isArray(updated) ? updated : []);
+      const refreshed = (Array.isArray(updated) ? updated : []).find(
+        (member) => member.user?.id === editingMember.user.id
+      );
+      if (refreshed) {
+        setEditingMember(refreshed);
+        setMemberParticularPerms(refreshed.personal_permissions || []);
+      }
+      toast.success("Permiso personalizado retirado");
+    } catch (err) {
+      toast.error(err.message || "Error al retirar permiso personalizado");
+    }
+  };
+
+  const refreshPersonalPermissions = async () => {
+    const updated = await getFarmMembers(id);
+    setWorkers(Array.isArray(updated) ? updated : []);
+    const refreshed = (Array.isArray(updated) ? updated : []).find(
+      (member) => member.user?.id === editingMember?.user?.id
+    );
+    if (refreshed) {
+      setEditingMember(refreshed);
+      setMemberParticularPerms(refreshed.personal_permissions || []);
+    }
+  };
+
+  const handleRemovePersonalPermissionsByModule = async (module) => {
+    if (!editingMember?.user?.id) return;
+    const permissions = personalPermissionsByModule.get(module) || [];
+
+    try {
+      await Promise.all(
+        permissions.map((permission) =>
+          removeMemberPersonalPermission(
+            id,
+            editingMember.user.id,
+            permission.id
+          )
+        )
+      );
+      await refreshPersonalPermissions();
+      toast.success("Permisos del módulo retirados");
+    } catch (err) {
+      toast.error(err.message || "Error al retirar los permisos del módulo");
+    }
+  };
+
+  const handleRemoveAllPersonalPermissions = async () => {
+    if (!editingMember?.user?.id) return;
+
+    try {
+      await Promise.all(
+        memberParticularPerms.map((permission) =>
+          removeMemberPersonalPermission(
+            id,
+            editingMember.user.id,
+            permission.id
+          )
+        )
+      );
+      await refreshPersonalPermissions();
+      toast.success("Permisos personalizados retirados");
+    } catch (err) {
+      toast.error(err.message || "Error al retirar los permisos personalizados");
     }
   };
 
@@ -527,7 +721,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
       fullRole.app_permissions.forEach((p) => {
         if (p?.app) {
           const isViewOnlyApp =
-            p.app === "core_alerts" || p.app === "core_auditlogs";
+            p.app === "alerts" || p.app === "audit_logs";
 
           initialPerms[p.app] = {
             can_view: Boolean(p.can_view),
@@ -546,9 +740,9 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
   // Cambiar un permiso individual por app
   const handlePermissionChange = (appKey, action, checked) => {
     const isViewOnlyApp =
-      appKey === "core_alerts" || appKey === "core_auditlogs";
+      appKey === "alerts" || appKey === "audit_logs";
 
-    // Para core_alerts y core_auditlogs SOLO se permite can_view
+    // Alerts y audit_logs solo permiten consulta.
     if (isViewOnlyApp && action !== "can_view") {
       return;
     }
@@ -585,7 +779,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
   // Accesos rápidos por app
   const setQuickAccess = (appKey, level) => {
     const isViewOnlyApp =
-      appKey === "core_alerts" || appKey === "core_auditlogs";
+      appKey === "alerts" || appKey === "audit_logs";
 
     setRoleAppPermissions((prev) => {
       let updated = {
@@ -646,7 +840,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
       )
       .map(([appKey, perms]) => {
         const isViewOnlyApp =
-          appKey === "core_alerts" || appKey === "core_auditlogs";
+          appKey === "alerts" || appKey === "audit_logs";
         return {
           app: appKey,
           can_view: Boolean(
@@ -769,29 +963,34 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
     }
   };
 
-  const filteredAuditLogs = useMemo(() => {
-    return auditLogs.filter((log) => {
-      if (
-        auditSourceFilter !== "All" &&
-        log.type_source !== auditSourceFilter
-      ) {
-        return false;
-      }
+  const handleApplyAuditFilters = () => {
+    if (auditDateFrom && auditDateTo && auditDateFrom > auditDateTo) {
+      toast.error("La fecha inicial debe ser anterior o igual a la fecha final.");
+      return;
+    }
 
-      if (auditSearch.trim()) {
-        const query = auditSearch.toLowerCase();
-        const descMatch = (log.description || "").toLowerCase().includes(query);
-        const typeMatch = (log.type_source || "").toLowerCase().includes(query);
-        const idMatch = String(log.source_id || "").includes(query);
-        const ipMatch = (log.ip || "").toLowerCase().includes(query);
-        const userMatch = String(log.user || "").includes(query);
-
-        return descMatch || typeMatch || idMatch || ipMatch || userMatch;
-      }
-
-      return true;
+    const origin = auditSourceFilter === "All" ? "" : auditSourceFilter;
+    setAppliedAuditFilters({
+      date_from: auditDateFrom,
+      date_to: auditDateTo,
+      origin,
+      origin_id: auditOriginId,
+      user: auditUserFilter,
+      ip: auditIpFilter,
     });
-  }, [auditLogs, auditSourceFilter, auditSearch]);
+    setAuditPage(1);
+  };
+
+  const handleClearAuditFilters = () => {
+    setAuditDateFrom("");
+    setAuditDateTo("");
+    setAuditSourceFilter("All");
+    setAuditOriginId("");
+    setAuditUserFilter("");
+    setAuditIpFilter("");
+    setAppliedAuditFilters({});
+    setAuditPage(1);
+  };
 
   /* =========================================================================
      OPERACIONES Y FILTRADO DE ALERTAS
@@ -817,6 +1016,79 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
       (p) => p.can_view || p.can_create || p.can_edit || p.can_delete
     ).length;
   }, [roleAppPermissions]);
+
+  const selectedMemberRole = useMemo(
+    () => roles.find((role) => role.id === memberRole),
+    [roles, memberRole]
+  );
+
+  const roleGrantedOperations = useMemo(() => {
+    const grants = new Map();
+    (selectedMemberRole?.app_permissions || []).forEach((permission) => {
+      const moduleOperations = new Set(grants.get(permission.app || permission.module) || []);
+      if (permission.can_view) moduleOperations.add("view");
+      if (permission.can_create) moduleOperations.add("create");
+      if (permission.can_update || permission.can_edit) moduleOperations.add("update");
+      if (permission.can_delete) moduleOperations.add("delete");
+      grants.set(permission.app || permission.module, moduleOperations);
+    });
+    return grants;
+  }, [selectedMemberRole]);
+
+  const personalPermissionsByModule = useMemo(() => {
+    const grouped = new Map();
+    memberParticularPerms.forEach((permission) => {
+      const permissions = grouped.get(permission.module) || [];
+      permissions.push(permission);
+      grouped.set(permission.module, permissions);
+    });
+    return grouped;
+  }, [memberParticularPerms]);
+
+  const availablePersonalModules = useMemo(() => {
+    return apps.filter((app) => {
+      const roleOperations = roleGrantedOperations.get(app.module) || new Set();
+      const personalizedOperations = new Set(
+        (personalPermissionsByModule.get(app.module) || []).map(
+          (permission) => permission.operation === "update" ? "update" : permission.operation
+        )
+      );
+      const operations =
+        app.module === "alerts" || app.module === "audit_logs"
+          ? ["view"]
+          : PERSONAL_PERMISSION_OPERATIONS;
+
+      return operations.some(
+        (operation) =>
+          !roleOperations.has(operation) &&
+          !personalizedOperations.has(operation)
+      );
+    });
+  }, [apps, roleGrantedOperations, personalPermissionsByModule]);
+
+  const availableOperationsForSelectedModule = useMemo(() => {
+    if (!personalPermissionModule) return [];
+    const roleOperations = roleGrantedOperations.get(personalPermissionModule) || new Set();
+    const personalizedOperations = new Set(
+      (personalPermissionsByModule.get(personalPermissionModule) || []).map(
+        (permission) => permission.operation
+      )
+    );
+    const operations =
+      personalPermissionModule === "alerts" || personalPermissionModule === "audit_logs"
+        ? ["view"]
+        : PERSONAL_PERMISSION_OPERATIONS;
+
+    return operations.filter(
+      (operation) =>
+        !roleOperations.has(operation) &&
+        !personalizedOperations.has(operation)
+    );
+  }, [
+    personalPermissionModule,
+    roleGrantedOperations,
+    personalPermissionsByModule,
+  ]);
 
   /* =========================================================================
      RENDER
@@ -995,7 +1267,6 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                     <th className="py-3.5 px-4">Correo</th>
                     <th className="py-3.5 px-4">Estado</th>
                     <th className="py-3.5 px-4">Rol Asignado</th>
-                    <th className="py-3.5 px-4">Permisos Particulares</th>
                     <th className="py-3.5 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -1005,10 +1276,6 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                     const assignedRole = roles.find((r) => r.id === memberRoleId);
                     const isOwner = Boolean(w.is_owner);
                     const isActive = w.status === "active";
-                    const particularPerms = Array.isArray(w.permissions)
-                      ? w.permissions
-                      : [];
-
                     return (
                       <tr
                         key={w.user?.id || w.id}
@@ -1104,30 +1371,6 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                           )}
                         </td>
 
-                        {/* PERMISOS PARTICULARES */}
-                        <td className="py-3.5 px-4">
-                          {isOwner ? (
-                            <span className="text-xs text-amber-800 font-medium">
-                              Control total de propietario
-                            </span>
-                          ) : particularPerms.length > 0 ? (
-                            <div className="flex flex-wrap gap-1 max-w-xs">
-                              {particularPerms.map((p) => (
-                                <span
-                                  key={p}
-                                  className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono"
-                                >
-                                  {p}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 italic">
-                              Ninguno
-                            </span>
-                          )}
-                        </td>
-
                         {/* ACCIONES */}
                         <td className="py-3.5 px-4 text-right">
                           {isOwner ? (
@@ -1192,6 +1435,39 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {!loadingTab && (auditPrevious || auditNext) && (
+            <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+              <span className="text-xs text-slate-500">
+                Página {auditPage}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!auditPrevious}
+                  onClick={() => {
+                    const page = new URL(auditPrevious, window.location.origin).searchParams.get("page");
+                    setAuditPage(page ? Number(page) : Math.max(1, auditPage - 1));
+                  }}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!auditNext}
+                  onClick={() => {
+                    const page = new URL(auditNext, window.location.origin).searchParams.get("page");
+                    setAuditPage(page ? Number(page) : auditPage + 1);
+                  }}
+                >
+                  Siguiente
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -1287,7 +1563,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                       {/* PERMISOS POR APLICACIÓN (APP_PERMISSIONS) */}
                       <div className="mt-4 space-y-2">
                         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                          Permisos por Módulo (app_permissions)
+                          Permisos por módulo
                         </p>
 
                         {appPerms.length === 0 ? (
@@ -1297,10 +1573,13 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                         ) : (
                           <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
                             {appPerms.map((perm) => {
-                              const appLabel = appNamesMap[perm.app] || perm.app;
+                              const appLabel = getModuleLabel(
+                                perm.app,
+                                appNamesMap[perm.app]
+                              );
                               const isViewOnlyApp =
-                                perm.app === "core_alerts" ||
-                                perm.app === "core_auditlogs";
+                                perm.app === "alerts" ||
+                                perm.app === "audit_logs";
 
                               const hasAnyAction =
                                 perm.can_view ||
@@ -1538,33 +1817,54 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
               </p>
             </div>
 
-            {/* Búsqueda y Filtros de Auditoría */}
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Buscar en descripción, IP..."
-                  value={auditSearch}
-                  onChange={(e) => setAuditSearch(e.target.value)}
-                  className="pl-8 h-9 text-xs"
-                />
-              </div>
+            {auditCount > 0 && (
+              <span className="text-xs font-semibold text-slate-500">
+                {auditCount} registro{auditCount === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
 
-              <Select
-                value={auditSourceFilter}
-                onValueChange={setAuditSourceFilter}
-              >
-                <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-                  <SelectValue placeholder="Tipo de entidad" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-600">Desde</label>
+              <Input type="date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="h-9 text-xs" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-600">Hasta</label>
+              <Input type="date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="h-9 text-xs" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-600">Origen</label>
+              <Select value={auditSourceFilter} onValueChange={setAuditSourceFilter}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
                   {AUDIT_TYPE_SOURCES.map((src) => (
-                    <SelectItem key={src} value={src}>
-                      {src === "All" ? "Todos los tipos" : src}
-                    </SelectItem>
+                    <SelectItem key={src} value={src}>{getAuditTypeLabel(src)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-600">ID del origen</label>
+              <Input type="number" min="1" value={auditOriginId} onChange={(e) => setAuditOriginId(e.target.value)} placeholder="Ej. 12" className="h-9 text-xs" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-600">Usuario</label>
+              <Input value={auditUserFilter} onChange={(e) => setAuditUserFilter(e.target.value)} placeholder="ID, nombre o correo" className="h-9 text-xs" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-600">Dirección IP</label>
+              <Input value={auditIpFilter} onChange={(e) => setAuditIpFilter(e.target.value)} placeholder="192.0.2.10" className="h-9 text-xs" />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3 xl:col-span-6 flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleClearAuditFilters}>
+                Limpiar filtros
+              </Button>
+              <Button type="button" size="sm" className="bg-blue-600 text-white hover:bg-blue-700" onClick={handleApplyAuditFilters}>
+                Aplicar filtros
+              </Button>
             </div>
           </div>
 
@@ -1573,7 +1873,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
               <p className="text-sm">Cargando registros de auditoría...</p>
             </div>
-          ) : filteredAuditLogs.length === 0 ? (
+          ) : auditLogs.length === 0 ? (
             <div className="p-12 text-center border border-dashed border-slate-200 rounded-xl">
               <History className="w-10 h-10 text-slate-300 mx-auto mb-2" />
               <p className="text-sm font-semibold text-slate-700">
@@ -1598,7 +1898,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredAuditLogs.map((log) => (
+                  {auditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/60">
                       <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">
                         {log.created_at
@@ -1610,18 +1910,20 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                       </td>
                       <td className="py-3 px-3">
                         <span className="inline-block text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                          {log.type_source || "Desconocido"}
+                          {getAuditTypeLabel(log.type_source)}
                         </span>
                       </td>
                       <td className="py-3 px-3 font-mono text-xs text-slate-500">
                         {log.source_id ? `#${log.source_id}` : "—"}
                       </td>
                       <td className="py-3 px-3 text-xs text-slate-800 font-medium max-w-xs truncate">
-                        {log.description || "Sin descripción"}
+                        {log.detail?.summary || log.description || "Sin descripción"}
                       </td>
                       <td className="py-3 px-3 text-xs text-slate-600">
-                        {log.user ? (
-                          <span className="font-mono">Usuario #{log.user}</span>
+                        {log.user_name ? (
+                          <span className="font-medium">{log.user_name}</span>
+                        ) : log.user ? (
+                          <span className="font-mono text-slate-500">Usuario #{log.user}</span>
                         ) : (
                           <span className="text-slate-400 italic">
                             Sistema / Automático
@@ -1929,58 +2231,128 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
             </div>
 
             {/* 2. PERMISOS PARTICULARES DE LA MEMBRESÍA */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Permisos Particulares de la Membresía (permissions)
-                  </label>
-                  <p className="text-[11px] text-slate-500">
-                    Permisos generales asignados directamente a este usuario en esta granja, independientes de su rol.
-                  </p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-4">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                    Permisos personalizados
+                  </h4>
+                  {canEditMembersAndRoles && memberParticularPerms.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 border-red-200 text-[11px] text-red-600 hover:bg-red-50 hover:text-red-700"
+                      onClick={handleRemoveAllPersonalPermissions}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Eliminar todos
+                    </Button>
+                  )}
                 </div>
-                {!canEditMembersAndRoles && (
-                  <span className="text-[10px] text-amber-700 font-medium">
-                    (Solo el propietario puede modificar permisos)
-                  </span>
-                )}
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Permisos adicionales que se suman a los otorgados por el rol.
+                </p>
               </div>
 
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {AVAILABLE_MEMBER_PERMISSIONS.map((perm) => {
-                  const isChecked = memberParticularPerms.includes(perm.key);
-                  return (
-                    <label
-                      key={perm.key}
-                      className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer select-none transition ${
-                        isChecked
-                          ? "border-blue-300 bg-blue-50/40"
-                          : "border-slate-200 hover:bg-slate-50"
-                      } ${!canEditMembersAndRoles ? "opacity-60 cursor-not-allowed" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={!canEditMembersAndRoles || isSavingMember}
-                        checked={isChecked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setMemberParticularPerms((prev) => [...prev, perm.key]);
-                          } else {
-                            setMemberParticularPerms((prev) =>
-                              prev.filter((p) => p !== perm.key)
-                            );
-                          }
-                        }}
-                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 mt-0.5"
-                      />
-                      <div>
-                        <p className="font-bold text-slate-800">{perm.label}</p>
-                        <p className="text-[11px] text-slate-500">{perm.description}</p>
+              {memberParticularPerms.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-xs text-slate-400">
+                  Este miembro no tiene permisos personalizados.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {[...personalPermissionsByModule.entries()].map(([module, permissions]) => {
+                    return (
+                      <div
+                        key={module}
+                        className="rounded-xl border border-blue-100 bg-white p-3 shadow-sm"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-slate-700">
+                            {getModuleLabel(
+                              module,
+                              apps.find((app) => app.module === module)?.name
+                            )}
+                          </p>
+                          {canEditMembersAndRoles && (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-semibold text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              onClick={() => handleRemovePersonalPermissionsByModule(module)}
+                              aria-label={`Eliminar todos los permisos del módulo ${module}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Eliminar módulo
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {permissions.map((permission) => (
+                            <span
+                              key={permission.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold uppercase text-blue-700"
+                            >
+                              {getActionLabel(permission.operation)}
+                              {canEditMembersAndRoles && (
+                                <button
+                                  type="button"
+                                  className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-blue-500 hover:bg-blue-100 hover:text-red-600"
+                                  onClick={() => handleRemovePersonalPermission(permission.id)}
+                                  aria-label={`Eliminar permiso ${permission.module}.${permission.operation}`}
+                                >
+                                  <span aria-hidden="true">×</span>
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </label>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
+              {canEditMembersAndRoles && (
+                <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_1fr_auto]">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600">Módulo</label>
+                    <Select
+                      value={personalPermissionModule}
+                      onValueChange={(module) => {
+                        setPersonalPermissionModule(module);
+                        if (module === "alerts" || module === "audit_logs") {
+                          setPersonalPermissionOperation("view");
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {availablePersonalModules.map((app) => (
+                          <SelectItem key={app.module} value={app.module}>
+                            {getModuleLabel(app.module, app.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600">Acción</label>
+                    <Select value={personalPermissionOperation} onValueChange={setPersonalPermissionOperation}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {availableOperationsForSelectedModule
+                          .map((operation) => (
+                            <SelectItem key={operation} value={operation}>
+                              {getActionLabel(operation)}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="button" className="self-end" onClick={handleAddPersonalPermission} disabled={!personalPermissionModule}>
+                    Agregar permiso
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* 3. ESTADO DE LA MEMBRESÍA */}
@@ -2074,7 +2446,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Permisos por Módulo (app_permissions)
+                    Permisos por módulo
                   </h4>
                   <p className="text-[11px] text-slate-400">
                     Habilitar Crear, Editar o Eliminar activará automáticamente la consulta.
@@ -2093,9 +2465,9 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                 <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                   {apps.map((item) => {
                     const appKey = item.app;
-                    const appLabel = item.name || appKey;
+                    const appLabel = getModuleLabel(appKey, item.name);
                     const isViewOnlyApp =
-                      appKey === "core_alerts" || appKey === "core_auditlogs";
+                      appKey === "alerts" || appKey === "audit_logs";
 
                     const perms = roleAppPermissions[appKey] || {
                       can_view: false,
@@ -2123,9 +2495,6 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-xs text-slate-800">
                               {appLabel}
-                            </span>
-                            <span className="text-[11px] text-slate-400 font-mono">
-                              ({appKey})
                             </span>
                             {isViewOnlyApp && (
                               <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
@@ -2183,7 +2552,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                                   : "text-slate-600"
                               }`}
                             >
-                              Consultar (GET)
+                              Ver
                             </span>
                           </label>
 
@@ -2215,7 +2584,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                                   : "text-slate-600"
                               }`}
                             >
-                              Crear (POST)
+                              Crear
                             </span>
                           </label>
 
@@ -2247,7 +2616,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                                   : "text-slate-600"
                               }`}
                             >
-                              Editar (PUT/PATCH)
+                              Editar
                             </span>
                           </label>
 
@@ -2279,7 +2648,7 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                                   : "text-slate-600"
                               }`}
                             >
-                              Eliminar (DELETE)
+                              Eliminar
                             </span>
                           </label>
                         </div>
@@ -2379,8 +2748,9 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
             <DialogTitle className="text-base font-bold text-slate-900">
               Detalle del Registro de Auditoría #{selectedAuditLog?.id}
             </DialogTitle>
-            <p className="text-xs text-slate-500 font-mono">
-              Granja #{id} | Origen: {selectedAuditLog?.type_source} (ID #{selectedAuditLog?.source_id || "N/A"})
+            <p className="text-xs text-slate-500">
+              Granja #{id} | Origen: {getAuditTypeLabel(selectedAuditLog?.type_source)}
+              {selectedAuditLog?.source_id ? ` #${selectedAuditLog.source_id}` : ""}
             </p>
           </DialogHeader>
 
@@ -2402,10 +2772,9 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                   <span className="text-[10px] font-semibold text-slate-400 uppercase">
                     Usuario Responsable
                   </span>
-                  <p className="font-semibold text-slate-800 mt-0.5 font-mono">
-                    {selectedAuditLog.user
-                      ? `ID #${selectedAuditLog.user}`
-                      : "Sistema / Automático"}
+                  <p className="font-semibold text-slate-800 mt-0.5">
+                    {selectedAuditLog.user_name ||
+                      (selectedAuditLog.user ? `Usuario #${selectedAuditLog.user}` : "Sistema / Automático")}
                   </p>
                 </div>
                 <div>
@@ -2424,57 +2793,47 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                   Descripción de la Operación
                 </span>
                 <p className="font-medium text-slate-800 mt-1">
-                  {selectedAuditLog.description || "Sin descripción proporcionada"}
+                  {selectedAuditLog.detail?.summary ||
+                    selectedAuditLog.description ||
+                    "Sin descripción proporcionada"}
                 </p>
               </div>
 
-              {/* COMPARACIÓN DE VALORES DIFF (old_values vs new_values) */}
+              {/* COMPARACIÓN DE VALORES */}
               <div className="space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Valores Previos vs Nuevos Valores
+                  Cambios realizados
                 </span>
-
-                {selectedAuditLog.old_values === null &&
-                selectedAuditLog.new_values === null ? (
-                  <p className="text-xs text-slate-400 italic p-4 rounded-xl border border-dashed border-slate-200 text-center">
-                    No se registraron cambios estructurales (ambos valores son nulos).
+                {selectedAuditLog.old_values === null && selectedAuditLog.new_values ? (
+                  <p className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                    Registro creado
                   </p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* VALORES ANTERIORES */}
-                    <div className="p-3 rounded-xl border border-red-200 bg-red-50/20">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-red-800 mb-2">
-                        <XCircle className="w-3.5 h-3.5 text-red-600" />
-                        Valores Anteriores (old_values)
-                      </div>
-                      {selectedAuditLog.old_values ? (
-                        <pre className="text-[11px] font-mono bg-white p-2.5 rounded-lg border border-red-100 overflow-x-auto text-slate-800 max-h-60">
-                          {JSON.stringify(selectedAuditLog.old_values, null, 2)}
-                        </pre>
-                      ) : (
-                        <p className="text-[11px] text-slate-400 italic">
-                          Ninguno (registro de creación inicial).
-                        </p>
-                      )}
-                    </div>
+                ) : selectedAuditLog.new_values === null && selectedAuditLog.old_values ? (
+                  <p className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 border border-red-200">
+                    Registro eliminado
+                  </p>
+                ) : null}
 
-                    {/* VALORES NUEVOS */}
-                    <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50/20">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 mb-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Nuevos Valores (new_values)
+                {getAuditChanges(selectedAuditLog).length > 0 ? (
+                  <div className="divide-y rounded-xl border border-slate-200 overflow-hidden">
+                    {getAuditChanges(selectedAuditLog).map((change, index) => (
+                      <div key={`${change.field}-${index}`} className="grid grid-cols-[1fr_1fr_1fr] gap-3 bg-white px-3 py-3">
+                        <span className="font-semibold text-slate-800">{change.label}</span>
+                        <div>
+                          <span className="block text-[9px] font-bold uppercase text-red-500">Antes</span>
+                          <span className="text-slate-600">{formatAuditValue(change.before)}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[9px] font-bold uppercase text-emerald-600">Después</span>
+                          <span className="font-medium text-slate-800">{formatAuditValue(change.after)}</span>
+                        </div>
                       </div>
-                      {selectedAuditLog.new_values ? (
-                        <pre className="text-[11px] font-mono bg-white p-2.5 rounded-lg border border-emerald-100 overflow-x-auto text-slate-800 max-h-60">
-                          {JSON.stringify(selectedAuditLog.new_values, null, 2)}
-                        </pre>
-                      ) : (
-                        <p className="text-[11px] text-slate-400 italic">
-                          Ninguno (registro de eliminación).
-                        </p>
-                      )}
-                    </div>
+                    ))}
                   </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic p-4 rounded-xl border border-dashed border-slate-200 text-center">
+                    No hay cambios estructurados disponibles.
+                  </p>
                 )}
               </div>
             </div>

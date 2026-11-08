@@ -106,14 +106,14 @@ function sanitizeAppPermissions(appPermissions = []) {
     seen.add(appKey);
 
     const isViewOnlyApp =
-      appKey === "core_alerts" || appKey === "core_auditlogs";
+      appKey === "alerts" || appKey === "audit_logs";
 
     if (isViewOnlyApp) {
       sanitized.push({
-        app: perm.app,
+        module: perm.app,
         can_view: Boolean(perm.can_view),
         can_create: false,
-        can_edit: false,
+        can_update: false,
         can_delete: false,
       });
     } else {
@@ -121,10 +121,10 @@ function sanitizeAppPermissions(appPermissions = []) {
         perm.can_view || perm.can_create || perm.can_edit || perm.can_delete
       );
       sanitized.push({
-        app: perm.app,
+        module: perm.app,
         can_view: anyAction,
         can_create: Boolean(perm.can_create),
-        can_edit: Boolean(perm.can_edit),
+        can_update: Boolean(perm.can_edit || perm.can_update),
         can_delete: Boolean(perm.can_delete),
       });
     }
@@ -143,13 +143,16 @@ function sanitizeAppPermissions(appPermissions = []) {
  * Incluye core_alerts y core_auditlogs.
  */
 export async function getFarmApps(farmId, token = null) {
-  const url = buildApiUrl(`/farms/${farmId}/roles/apps/`);
+  const url = buildApiUrl(`/farms/${farmId}/roles/modules/`);
   const res = await fetch(url, {
     method: "GET",
     headers: getAuthHeaders(token),
   });
 
-  return await handleResponse(res, "Error al obtener aplicaciones de la granja");
+  const modules = await handleResponse(res, "Error al obtener módulos de la granja");
+  return Array.isArray(modules)
+    ? modules.map((item) => ({ app: item.module, module: item.module, name: item.name }))
+    : [];
 }
 
 /**
@@ -163,7 +166,8 @@ export async function getFarmRoles(farmId, token = null) {
     headers: getAuthHeaders(token),
   });
 
-  return await handleResponse(res, "Error al obtener roles de la granja");
+  const roles = await handleResponse(res, "Error al obtener roles de la granja");
+  return normalizeRoles(roles);
 }
 
 /**
@@ -177,7 +181,29 @@ export async function getFarmRole(farmId, roleId, token = null) {
     headers: getAuthHeaders(token),
   });
 
-  return await handleResponse(res, "Error al obtener el rol de la granja");
+  return normalizeRole(await handleResponse(res, "Error al obtener el rol de la granja"));
+}
+
+function normalizeRole(role) {
+  if (!role || typeof role !== "object") return role;
+  return {
+    ...role,
+    app_permissions: Array.isArray(role.module_permissions)
+      ? role.module_permissions.map((permission) => ({
+          app: permission.module,
+          module: permission.module,
+          can_view: Boolean(permission.can_view),
+          can_create: Boolean(permission.can_create),
+          can_edit: Boolean(permission.can_update),
+          can_update: Boolean(permission.can_update),
+          can_delete: Boolean(permission.can_delete),
+        }))
+      : [],
+  };
+}
+
+function normalizeRoles(roles) {
+  return Array.isArray(roles) ? roles.map(normalizeRole) : roles;
 }
 
 /**
@@ -194,7 +220,7 @@ export async function createFarmRole(farmId, data, token = null) {
   };
 
   if (data.app_permissions !== undefined) {
-    payload.app_permissions = sanitizeAppPermissions(data.app_permissions);
+    payload.module_permissions = sanitizeAppPermissions(data.app_permissions);
   }
 
   const res = await fetch(url, {
@@ -227,7 +253,7 @@ export async function updateFarmRole(
   }
 
   if (data.app_permissions !== undefined) {
-    payload.app_permissions = sanitizeAppPermissions(data.app_permissions);
+    payload.module_permissions = sanitizeAppPermissions(data.app_permissions);
   }
 
   const res = await fetch(url, {
@@ -310,12 +336,6 @@ export async function updateFarmMember(farmId, userId, data, token = null) {
         : Number(data.farm_role);
   }
 
-  if (data.permissions !== undefined) {
-    payload.permissions = Array.isArray(data.permissions)
-      ? data.permissions
-      : [];
-  }
-
   const res = await fetch(url, {
     method: "PATCH",
     headers: getAuthHeaders(token),
@@ -347,8 +367,39 @@ export async function updateMemberStatus(farmId, userId, status, token = null) {
 /**
  * Actualiza los permisos particulares de la membresía.
  */
-export async function updateMemberPermissions(farmId, userId, permissions, token = null) {
-  return await updateFarmMember(farmId, userId, { permissions }, token);
+export async function addMemberPersonalPermission(
+  farmId,
+  userId,
+  permission,
+  token = null
+) {
+  const url = buildApiUrl(`/farms/${farmId}/members/${userId}/personal-permissions/`);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({
+      module: permission.module,
+      operation: permission.operation,
+    }),
+  });
+  return await handleResponse(res, "Error al agregar el permiso personalizado");
+}
+
+export async function removeMemberPersonalPermission(
+  farmId,
+  userId,
+  permissionId,
+  token = null
+) {
+  const url = buildApiUrl(
+    `/farms/${farmId}/members/${userId}/personal-permissions/${permissionId}/`
+  );
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: getAuthHeaders(token),
+  });
+  await handleResponse(res, "Error al retirar el permiso personalizado");
+  return true;
 }
 
 /**
@@ -413,17 +464,37 @@ export async function getFarmInvitations(farmId, token = null) {
  * GET /api/farms/core/<farm_id>/auditlogs/
  * Lista los registros de auditoría de la granja indicada.
  */
-export async function getFarmAuditLogs(farmId, token = null) {
-  const url = buildApiUrl(`/farms/core/${farmId}/auditlogs/`);
+export async function getFarmAuditLogs(farmId, filters = {}, token = null) {
+  const params = new URLSearchParams();
+  ["date_from", "date_to", "origin", "origin_id", "user", "ip", "page"].forEach(
+    (key) => {
+      if (filters[key] !== undefined && filters[key] !== null && filters[key] !== "") {
+        params.set(key, String(filters[key]));
+      }
+    }
+  );
+  const query = params.toString();
+  const url = buildApiUrl(
+    `/farms/core/${farmId}/auditlogs/${query ? `?${query}` : ""}`
+  );
   const res = await fetch(url, {
     method: "GET",
     headers: getAuthHeaders(token),
   });
 
-  return await handleResponse(
+  const data = await handleResponse(
     res,
     "Error al obtener registros de auditoría de la granja"
   );
+  if (Array.isArray(data)) {
+    return { count: data.length, next: null, previous: null, results: data };
+  }
+  return {
+    count: Number(data?.count ?? 0),
+    next: data?.next ?? null,
+    previous: data?.previous ?? null,
+    results: Array.isArray(data?.results) ? data.results : [],
+  };
 }
 
 /**

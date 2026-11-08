@@ -77,8 +77,8 @@ export function hasAppPermission(appPermissions = [], appKey, action = "view") {
 
   const normalizedAction = String(action || "view").toLowerCase();
 
-  // core_alerts y core_auditlogs son permisos independientes y solamente aceptan can_view
-  if (key === "core_alerts" || key === "core_auditlogs") {
+  // alerts y audit_logs son permisos independientes y solamente aceptan can_view
+  if (key === "alerts" || key === "audit_logs") {
     if (
       normalizedAction === "view" ||
       normalizedAction === "read" ||
@@ -186,15 +186,15 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     audit: {
-      apps: ["core_auditlogs"],
+      apps: ["audit_logs"],
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     auditlogs: {
-      apps: ["core_auditlogs"],
+      apps: ["audit_logs"],
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     alerts: {
-      apps: ["core_alerts"],
+      apps: ["alerts"],
       legacy: [],
     },
   };

@@ -211,12 +211,12 @@ export function usePermissions(farmId) {
     );
   }, [hasFullAccess, state.particularPermissions]);
 
-  // Módulo de Auditoría por granja (core_auditlogs):
+  // Módulo de Auditoría por granja (audit_logs):
   // Exclusivo de consulta por app_permissions o permisos generales
   const canViewAuditLogs = useMemo(() => {
     if (hasFullAccess) return true;
     return (
-      hasAppPermission(state.appPermissions, "core_auditlogs", "view") ||
+      hasAppPermission(state.appPermissions, "audit_logs", "view") ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_USERS) ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
     );
