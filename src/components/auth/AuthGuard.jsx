@@ -68,6 +68,21 @@ export function AuthGuard({ children, loginPath = "/login" }) {
     return installSessionWatch({
       apiBase: API_BASE,
       getToken: getAccessToken,
+      getRefreshToken: () => {
+        try {
+          return localStorage.getItem("refresh");
+        } catch {
+          return null;
+        }
+      },
+      saveTokens: ({ access, refresh }) => {
+        try {
+          localStorage.setItem("access", access);
+          if (refresh) localStorage.setItem("refresh", refresh);
+        } catch {
+          /* sin almacenamiento */
+        }
+      },
       onExpire: () => {
         clearSession();
         setAllowed(false);

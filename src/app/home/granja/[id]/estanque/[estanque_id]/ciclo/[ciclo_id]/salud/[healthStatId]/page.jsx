@@ -2,12 +2,13 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Plus, Trash2, Calendar, ClipboardList } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Calendar, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toaster, toast } from "sonner";
 import { healthService } from "@/lib/healthService";
 import { usePermissions } from "@/lib/usePermissions";
+import CancelTreatmentButton from "@/components/health/CancelTreatmentButton";
 
 const SEVERITY_COLORS = {
   low: "bg-green-100 text-green-700",
@@ -111,17 +112,6 @@ export default function HealthStatDetail({ params }) {
       toast.error(err.message || "Error al crear el plan de tratamiento.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleCancelPlan = async (planId) => {
-    if (!confirm("¿Está seguro de cancelar este plan de tratamiento?")) return;
-    try {
-      await healthService.deleteTreatmentPlan(id, estanque_id, ciclo_id, healthStatId, planId);
-      toast.success("Plan cancelado correctamente.");
-      fetchData();
-    } catch (err) {
-      toast.error(err.message || "No se pudo cancelar el plan.");
     }
   };
 
@@ -387,17 +377,15 @@ export default function HealthStatDetail({ params }) {
                   >
                     Ver eventos / Editar
                   </Link>
-                  {canManage && plan.status === "scheduled" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="inline-flex items-center gap-1 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
-                      onClick={() => handleCancelPlan(plan.id)}
-                      title="Cancelar plan"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  {/* D-46: se puede cancelar mientras esté programado o en curso */}
+                  <CancelTreatmentButton
+                    treatment={plan}
+                    canManage={canManage}
+                    onConfirm={() =>
+                      healthService.deleteTreatmentPlan(id, estanque_id, ciclo_id, healthStatId, plan.id)
+                    }
+                    onCancelled={fetchData}
+                  />
                 </CardFooter>
               </Card>
             );

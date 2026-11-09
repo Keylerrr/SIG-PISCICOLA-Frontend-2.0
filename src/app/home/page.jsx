@@ -70,8 +70,7 @@ export default function Home() {
                     <ButtonGroup>
                         <Input
                             id="input-button-group"
-                            placeholder="Escriba el nombre de la granja..."
-                            value={search}
+                            placeholder="Busca por nombre, municipio, departamento o propietario..."                            value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                         <Button className="text-md">Search</Button>

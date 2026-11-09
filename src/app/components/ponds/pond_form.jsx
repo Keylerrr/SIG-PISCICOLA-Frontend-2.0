@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
+import { extractApiErrors } from "@/lib/apiErrors";
 import {
   Gauge,
   FileText,
@@ -78,7 +79,27 @@ export function PondRegisterForm({
   const [descripcion, setDescripcion] = useState(safe(descripcionProp));
   const [type, setType] = useState(safe(typeProp));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+  // D-11: errores por campo (borde rojo); el motivo se muestra en el aviso emergente
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const clearField = (key) => {
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  };
+  const errCls = (key) => (fieldErrors[key] ? "border-rose-500 focus-visible:ring-rose-300" : "");
+
+  // Muestra lo que respondió el servidor: arreglo `detail`, `non_field_errors` o errores por campo
+  const showServerError = async (res) => {
+    const errorData = await res.clone().json().catch(() => ({}));
+    const { general, fields } = extractApiErrors({ status: res.status, payload: errorData });
+    const unique = [...new Set([...general, ...Object.values(fields).flat()])];
+    const list = unique.length
+      ? unique
+      : [`Error ${res.status}: ${res.statusText || "No se pudo guardar el estanque"}`];
+    setFieldErrors(fields);
+    toast.error(list[0]);
+    setIsSubmitting(false);
+  };
+
   const handleReset = () => {
     setNombre("");
     setEstado("");
@@ -88,47 +109,46 @@ export function PondRegisterForm({
     setProfundidad("");
     setDescripcion("");
     setType("");
+    setFieldErrors({});
+  };
+
+  const fail = (message, field) => {
+    toast.error(message);
+    setFieldErrors(field ? { [field]: [message] } : {});
+    return false;
   };
 
   const validate = () => {
     if (!nombre.trim()) {
-      toast.error("El nombre no puede estar vacío");
-      return false;
+      return fail("El nombre no puede estar vacío", "name");
     }
     if (!["active", "inactive", "in_use", "cleaning"].includes(estado)) {
-      toast.error("Debe seleccionar un estado válido");
-      return false;
+      return fail("Debe seleccionar un estado válido", "status");
     }
 
     const validTypes = ["dirt", "concrete", "geomembrane", "floating_cage", "raceway", "round_tank"];
     if (!validTypes.includes(type)) {
-      toast.error("Debe seleccionar un tipo de estanque válido");
-      return false;
+      return fail("Debe seleccionar un tipo de estanque válido", "type");
     }
     const cap = parseFloat(capacidad);
     if (isNaN(cap) || cap <= 0) {
-      toast.error("La capacidad debe ser un número positivo mayor a 0");
-      return false;
+      return fail("La capacidad debe ser un número positivo mayor a 0", "capacity");
     }
     const ar = parseFloat(area);
     if (isNaN(ar) || ar <= 0) {
-      toast.error("El área debe ser un número positivo válido");
-      return false;
+      return fail("El área debe ser un número positivo válido", "area");
     }
     const vol = parseFloat(volumen);
     if (isNaN(vol) || vol <= 0) {
-      toast.error("El volumen debe ser un número positivo válido");
-      return false;
+      return fail("El volumen debe ser un número positivo válido", "volume");
     }
     const dep = parseFloat(profundidad);
     if (isNaN(dep) || dep <= 0) {
-      toast.error("La profundidad debe ser un número positivo válido");
-      return false;
+      return fail("La profundidad debe ser un número positivo válido", "depth");
     }
 
     if (descripcion && descripcion.trim().length > 500) {
-      toast.error("La descripción no puede superar los 500 caracteres");
-      return false;
+      return fail("La descripción no puede superar los 500 caracteres", "description");
     }
     return true;
   };
@@ -137,6 +157,7 @@ export function PondRegisterForm({
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setFieldErrors({});
     const token = localStorage.getItem("access");
 
     const payload = {
@@ -161,15 +182,7 @@ export function PondRegisterForm({
       });
 
       if (!res.ok) {
-        const errorData = await res.clone().json().catch(() => ({}));
-        const errorMsg = 
-          errorData.detail || 
-          errorData.name?.[0] || 
-          errorData.type?.[0] ||
-          errorData.non_field_errors?.[0] || 
-          `Error ${res.status}: ${res.statusText}`;
-        toast.error(errorMsg);
-        setIsSubmitting(false);
+        await showServerError(res);
         return;
       }
 
@@ -186,6 +199,7 @@ export function PondRegisterForm({
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setFieldErrors({});
     const token = localStorage.getItem("access");
 
     const payload = {
@@ -210,15 +224,7 @@ export function PondRegisterForm({
       });
 
       if (!res.ok) {
-        const errorData = await res.clone().json().catch(() => ({}));
-        const errorMsg = 
-          errorData.detail || 
-          errorData.name?.[0] || 
-          errorData.type?.[0] ||
-          errorData.non_field_errors?.[0] || 
-          `Error ${res.status}: ${res.statusText}`;
-        toast.error(errorMsg);
-        setIsSubmitting(false);
+        await showServerError(res);
         return;
       }
 
@@ -239,9 +245,9 @@ export function PondRegisterForm({
           <Label icon={FileText}>Nombre *</Label>
           <Input 
             value={nombre} 
-            onChange={(e) => setNombre(e.target.value)} 
+            onChange={(e) => { clearField("name"); setNombre(e.target.value); }} 
             placeholder="Ej: Estanque Principal"
-            className="bg-white"
+            className={`bg-white ${errCls("name")}`}
             disabled={isSubmitting}
             required
           />
@@ -250,8 +256,8 @@ export function PondRegisterForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field>
             <Label icon={Gauge}>Estado *</Label>
-            <Select onValueChange={setEstado} value={estado} disabled={isSubmitting}>
-              <SelectTrigger className="w-full bg-white">
+            <Select onValueChange={(v) => { clearField("status"); setEstado(v); }} value={estado} disabled={isSubmitting}>
+              <SelectTrigger className={`w-full bg-white ${errCls("status")}`}>
                 <SelectValue placeholder="Seleccione un estado" />
               </SelectTrigger>
               <SelectContent>
@@ -275,8 +281,8 @@ export function PondRegisterForm({
 
           <Field>
             <Label icon={Box}>Tipo *</Label>
-            <Select onValueChange={setType} value={type} disabled={isSubmitting}>
-              <SelectTrigger className="w-full bg-white">
+            <Select onValueChange={(v) => { clearField("type"); setType(v); }} value={type} disabled={isSubmitting}>
+              <SelectTrigger className={`w-full bg-white ${errCls("type")}`}>
                 <SelectValue placeholder="Seleccione un tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -304,9 +310,9 @@ export function PondRegisterForm({
               step="0.01"
               min="0"
               value={capacidad} 
-              onChange={(e) => setCapacidad(e.target.value)} 
+              onChange={(e) => { clearField("capacity"); setCapacidad(e.target.value); }} 
               placeholder="0"
-              className="bg-white"
+              className={`bg-white ${errCls("capacity")}`}
               disabled={isSubmitting}
               required
             />
@@ -319,9 +325,9 @@ export function PondRegisterForm({
               step="0.01"
               min="0"
               value={area} 
-              onChange={(e) => setArea(e.target.value)} 
+              onChange={(e) => { clearField("area"); setArea(e.target.value); }} 
               placeholder="0"
-              className="bg-white"
+              className={`bg-white ${errCls("area")}`}
               disabled={isSubmitting}
               required
             />
@@ -334,9 +340,9 @@ export function PondRegisterForm({
               step="0.01"
               min="0"
               value={volumen} 
-              onChange={(e) => setVolumen(e.target.value)} 
+              onChange={(e) => { clearField("volume"); setVolumen(e.target.value); }} 
               placeholder="0"
-              className="bg-white"
+              className={`bg-white ${errCls("volume")}`}
               disabled={isSubmitting}
               required
             />
@@ -349,9 +355,9 @@ export function PondRegisterForm({
               step="0.01"
               min="0"
               value={profundidad} 
-              onChange={(e) => setProfundidad(e.target.value)} 
+              onChange={(e) => { clearField("depth"); setProfundidad(e.target.value); }} 
               placeholder="0"
-              className="bg-white"
+              className={`bg-white ${errCls("depth")}`}
               disabled={isSubmitting}
               required
             />
@@ -366,7 +372,7 @@ export function PondRegisterForm({
         </Label>
         <Input 
           value={descripcion} 
-          onChange={(e) => setDescripcion(e.target.value)} 
+          onChange={(e) => { clearField("description"); setDescripcion(e.target.value); }} 
           placeholder="Detalles adicionales..."
           disabled={isSubmitting}
         />

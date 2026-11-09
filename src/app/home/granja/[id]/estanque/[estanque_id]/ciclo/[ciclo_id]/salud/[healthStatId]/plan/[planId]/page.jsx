@@ -1,18 +1,27 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Pencil, Calendar, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toaster, toast } from "sonner";
 import { healthService } from "@/lib/healthService";
 import { usePermissions } from "@/lib/usePermissions";
+import CancelTreatmentButton from "@/components/health/CancelTreatmentButton";
 
 const EVENT_STATUS_COLORS = {
   scheduled: "bg-slate-100 text-slate-700",
   completed: "bg-green-100 text-green-700",
   skipped: "bg-rose-100 text-rose-700",
   in_progress: "bg-blue-100 text-blue-700",
+  cancelled: "bg-orange-100 text-orange-700",
+};
+
+const PLAN_STATUS_COLORS = {
+  scheduled: "bg-slate-100 text-slate-700",
+  in_progress: "bg-blue-100 text-blue-700",
+  completed: "bg-green-100 text-green-700",
   cancelled: "bg-orange-100 text-orange-700",
 };
 
@@ -24,6 +33,7 @@ export default function TreatmentPlanDetail({ params }) {
   const [products, setProducts] = useState([]);
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   // Edit Event State
   const [editingEvent, setEditingEvent] = useState(null);
@@ -131,9 +141,32 @@ export default function TreatmentPlanDetail({ params }) {
               >
                 <ArrowLeft className="w-5 h-5" /> Volver al diagnóstico
               </Link>
-              <h1 className="mt-4 text-3xl font-bold text-slate-900 flex items-center gap-2">
-                Plan de Tratamiento #{planId}
-              </h1>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+                  Plan de Tratamiento #{planId}
+                </h1>
+
+                {/* D-46: cancelar el tratamiento mientras esté programado o en curso */}
+                {plan && (
+                  <CancelTreatmentButton
+                    treatment={plan}
+                    canManage={canManage}
+                    onConfirm={() =>
+                      healthService.deleteTreatmentPlan(id, estanque_id, ciclo_id, healthStatId, planId)
+                    }
+                    onCancelled={() =>
+                      // se espera un momento para que se alcance a ver el aviso y se vuelve al diagnóstico
+                      setTimeout(
+                        () =>
+                          router.push(
+                            `/home/granja/${id}/estanque/${estanque_id}/ciclo/${ciclo_id}/salud/${healthStatId}`
+                          ),
+                        900
+                      )
+                    }
+                  />
+                )}
+              </div>
             </div>
 
             {plan && (
@@ -142,7 +175,12 @@ export default function TreatmentPlanDetail({ params }) {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Detalles Generales</h3>
                     <div className="space-y-2">
-                      <p><span className="font-medium text-slate-700">Estado:</span> {plan.status}</p>
+                      <p className="flex items-center gap-2">
+                        <span className="font-medium text-slate-700">Estado:</span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${PLAN_STATUS_COLORS[plan.status] || "bg-slate-100 text-slate-700"}`}>
+                          {options?.treatment_plan?.status?.find((o) => o.value === plan.status)?.label || plan.status}
+                        </span>
+                      </p>
                       <p><span className="font-medium text-slate-700">Producto:</span> {product ? product.name : "N/A"}</p>
                       <p><span className="font-medium text-slate-700">Dosis planificada:</span> {plan.dose_per_application} {planUnit?.symbol}</p>
                       <p><span className="font-medium text-slate-700">Motivo:</span> {plan.reason || "—"}</p>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { MapPin, Pencil, Trash, Droplet } from "lucide-react";
+import { MapPin, Pencil, Trash, Droplet, User, Waves, X } from "lucide-react";
 import {
   Card,
   CardAction,
@@ -23,6 +23,25 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { FarmRegisterForm } from "./farm_form";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ALL,
+  STATUS_LABELS,
+  buildFarmView,
+  countPonds,
+  filterFarms,
+  getDepartmentOptions,
+  getStatusOptions,
+  ownerNameFromMembers,
+} from "@/lib/farmFilters";
 import { Toaster, toast } from "sonner";
 
 const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
@@ -73,11 +92,10 @@ export function Farms({ search = "" }) {
   const [ciudades, setCiudades] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const filteredGranjas = useMemo(() => {
-    if (!search?.trim()) return granjas;
-    const term = search.toLowerCase().trim();
-    return granjas.filter((g) => g.name?.toLowerCase().includes(term));
-  }, [granjas, search]);
+  // D-12: filtros por departamento y estado, y datos extra de cada granja
+  const [departmentFilter, setDepartmentFilter] = useState(ALL);
+  const [statusFilter, setStatusFilter] = useState(ALL);
+  const [extras, setExtras] = useState({}); // { [farmId]: { owner, pondsCount } }
 
   const deptMap = useMemo(
     () => new Map(departamentos.map((d) => [d.id, d.name])),
@@ -87,6 +105,18 @@ export function Farms({ search = "" }) {
     () => new Map(ciudades.map((c) => [c.id, c.name])),
     [ciudades]
   );
+
+  const views = useMemo(
+    () => granjas.map((g) => buildFarmView(g, { deptMap, cityMap, extra: extras[g.id] })),
+    [granjas, deptMap, cityMap, extras]
+  );
+  const departmentOptions = useMemo(() => getDepartmentOptions(views), [views]);
+  const statusOptions = useMemo(() => getStatusOptions(views), [views]);
+  const filteredViews = useMemo(
+    () => filterFarms(views, { query: search, department: departmentFilter, status: statusFilter }),
+    [views, search, departmentFilter, statusFilter]
+  );
+  const hasFilters = departmentFilter !== ALL || statusFilter !== ALL;
 
   useEffect(() => {
     const fetchGranjas = async () => {
@@ -146,6 +176,49 @@ export function Farms({ search = "" }) {
     loadCatalogs();
   }, []);
 
+  // Propietario y número de estanques: la API de /farms/ no los trae, se consultan por granja
+  // (máx. 4 a la vez). Si el backend agrega owner_name / ponds_count, estas consultas no se hacen.
+  useEffect(() => {
+    const pending = granjas.filter(
+      (g) => !(g.owner_name || typeof g.owner === "string") || (g.ponds_count ?? g.pond_count) == null
+    );
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    const token = localStorage.getItem("access");
+    const headers = { Authorization: `Bearer ${token}` };
+    const readJson = async (promise) => {
+      try {
+        const res = await promise;
+        return res.ok ? await res.json() : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const loadExtra = async (g) => {
+      const [ponds, members] = await Promise.all([
+        readJson(fetch(`${API_BASE}/farms/${g.id}/ponds/`, { headers })),
+        readJson(fetch(`${API_BASE}/farms/${g.id}/members/`, { headers })),
+      ]);
+      if (cancelled) return;
+      setExtras((prev) => ({
+        ...prev,
+        [g.id]: { pondsCount: countPonds(ponds), owner: ownerNameFromMembers(members) },
+      }));
+    };
+
+    const queue = [...pending];
+    const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+      while (queue.length && !cancelled) await loadExtra(queue.shift());
+    });
+    Promise.all(workers);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [granjas]);
+
   const handleDelete = async (id) => {
     const token = localStorage.getItem("access");
 
@@ -188,16 +261,71 @@ export function Farms({ search = "" }) {
     <>
       <Toaster position="top-center" />
 
+      {/* Filtros (D-12) */}
+      <div className="max-w-6xl mx-auto px-4 pt-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <SelectTrigger className="w-full bg-white sm:w-56" aria-label="Filtrar por departamento">
+              <SelectValue placeholder="Departamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={ALL}>Todos los departamentos</SelectItem>
+                {departmentOptions.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full bg-white sm:w-48" aria-label="Filtrar por estado">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={ALL}>Todos los estados</SelectItem>
+                {statusOptions.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABELS[s] || s}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          {hasFilters && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDepartmentFilter(ALL);
+                setStatusFilter(ALL);
+              }}
+            >
+              <X className="mr-1 h-4 w-4" /> Limpiar filtros
+            </Button>
+          )}
+
+          <p className="text-sm text-slate-500 sm:ml-auto" aria-live="polite">
+            {filteredViews.length} de {views.length} {views.length === 1 ? "granja" : "granjas"}
+          </p>
+        </div>
+      </div>
+
       <div className="max-w-6xl mx-auto grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 p-4">
-        {}
-        {filteredGranjas.length === 0 && search && (
+        {filteredViews.length === 0 && (
           <p className="text-center col-span-full text-gray-500 text-lg">
-            No se encontraron granjas 😢
+            {views.length === 0
+              ? "Aún no hay granjas registradas."
+              : "No se encontraron granjas con esa búsqueda o filtros."}
           </p>
         )}
 
-        {}
-        {filteredGranjas.map((g) => (
+        {filteredViews.map((v) => {
+          const g = v.raw;
+          return (
           <Card
             key={g.id}
             className="group border hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 transition-all"
@@ -217,6 +345,26 @@ export function Farms({ search = "" }) {
               <CardDescription className="text-sm text-slate-600 mt-1 flex items-center gap-1">
                 <Droplet className="w-4 h-4 text-blue-500" />
                 <span>Fuente: {WATER_SOURCE_LABELS[g.water_source] || "No especificada"}</span>
+              </CardDescription>
+
+              {/* Propietario y estanques (D-12) */}
+              <CardDescription className="text-sm text-slate-600 mt-1 flex items-center gap-1">
+                <User className="w-4 h-4 text-blue-500" />
+                <span>
+                  Propietario:{" "}
+                  {v.owner === undefined ? "Cargando..." : v.owner || "Sin registrar"}
+                </span>
+              </CardDescription>
+
+              <CardDescription className="text-sm text-slate-600 mt-1 flex items-center gap-1">
+                <Waves className="w-4 h-4 text-blue-500" />
+                <span>
+                  {v.pondsCount === undefined
+                    ? "Estanques: Cargando..."
+                    : v.pondsCount === null
+                      ? "Estanques: Sin dato"
+                      : `${v.pondsCount} ${v.pondsCount === 1 ? "estanque" : "estanques"}`}
+                </span>
               </CardDescription>
 
               {}
@@ -279,16 +427,31 @@ export function Farms({ search = "" }) {
               </CardAction>
             </CardHeader>
 
-            <CardFooter>
+            <CardFooter className="items-end justify-between">
               <div>
                 <p className="text-2xl font-bold text-blue-600">
                   {g.total_area_ha} ha
                 </p>
                 <p className="text-sm text-slate-500">Área Total</p>
               </div>
+
+              {v.status && (
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    v.status === "active"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : v.status === "inactive"
+                        ? "bg-slate-200 text-slate-600"
+                        : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {STATUS_LABELS[v.status] || v.status}
+                </span>
+              )}
             </CardFooter>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </>
   );
