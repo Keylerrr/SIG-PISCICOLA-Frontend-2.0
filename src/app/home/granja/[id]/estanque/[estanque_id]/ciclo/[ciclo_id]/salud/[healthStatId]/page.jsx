@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toaster, toast } from "sonner";
 import { healthService } from "@/lib/healthService";
+import { getApiErrorMessage } from "@/lib/apiErrors";
 import { usePermissions } from "@/lib/usePermissions";
 import CancelTreatmentButton from "@/components/health/CancelTreatmentButton";
 
@@ -109,7 +110,7 @@ export default function HealthStatDetail({ params }) {
       setShowCreate(false);
       fetchData();
     } catch (err) {
-      toast.error(err.message || "Error al crear el plan de tratamiento.");
+      toast.error(getApiErrorMessage(err, "Error al crear el plan de tratamiento."));
     } finally {
       setSaving(false);
     }
