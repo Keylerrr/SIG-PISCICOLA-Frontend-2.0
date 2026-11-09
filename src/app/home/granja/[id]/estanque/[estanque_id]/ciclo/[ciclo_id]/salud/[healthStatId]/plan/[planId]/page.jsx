@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Pencil, Calendar, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,6 @@ export default function TreatmentPlanDetail({ params }) {
   const [products, setProducts] = useState([]);
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   // Edit Event State
   const [editingEvent, setEditingEvent] = useState(null);
@@ -44,18 +42,22 @@ export default function TreatmentPlanDetail({ params }) {
   const [savingEvent, setSavingEvent] = useState(false);
 
   const permissions = usePermissions(id);
-  const canManage = permissions.canManageCycle;
+  const canManage = permissions.canManageHealth;
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [planData, eventsData, optionsData, productsData, unitsData] = await Promise.all([
+  const loadData = useCallback(async () => {
+    const [planData, eventsData, optionsData, productsData, unitsData] = await Promise.all([
         healthService.getTreatmentPlanById(id, estanque_id, ciclo_id, healthStatId, planId),
         healthService.getTreatmentPlanEvents(id, estanque_id, ciclo_id, healthStatId, planId),
         healthService.getHealthOptions(),
         healthService.getProducts(id),
         healthService.getUnits(),
       ]);
+    return { planData, eventsData, optionsData, productsData, unitsData };
+  }, [id, estanque_id, ciclo_id, healthStatId, planId]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const { planData, eventsData, optionsData, productsData, unitsData } = await loadData();
       setPlan(planData);
       setEvents(Array.isArray(eventsData) ? eventsData : []);
       setOptions(optionsData);
@@ -67,11 +69,33 @@ export default function TreatmentPlanDetail({ params }) {
     } finally {
       setLoading(false);
     }
-  }, [id, estanque_id, ciclo_id, healthStatId, planId]);
+  }, [loadData]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let active = true;
+
+    loadData()
+      .then(({ planData, eventsData, optionsData, productsData, unitsData }) => {
+        if (!active) return;
+        setPlan(planData);
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
+        setOptions(optionsData);
+        setProducts(Array.isArray(productsData) ? productsData : []);
+        setUnits(Array.isArray(unitsData) ? unitsData : []);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error(err);
+        toast.error("Error al cargar los datos del plan y eventos.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loadData]);
 
   const handleSaveEvent = async () => {
     if (!editStatus) {
@@ -154,16 +178,7 @@ export default function TreatmentPlanDetail({ params }) {
                     onConfirm={() =>
                       healthService.deleteTreatmentPlan(id, estanque_id, ciclo_id, healthStatId, planId)
                     }
-                    onCancelled={() =>
-                      // se espera un momento para que se alcance a ver el aviso y se vuelve al diagnóstico
-                      setTimeout(
-                        () =>
-                          router.push(
-                            `/home/granja/${id}/estanque/${estanque_id}/ciclo/${ciclo_id}/salud/${healthStatId}`
-                          ),
-                        900
-                      )
-                    }
+                    onCancelled={fetchData}
                   />
                 )}
               </div>

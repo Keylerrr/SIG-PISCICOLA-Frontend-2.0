@@ -42,7 +42,7 @@ export default function HealthStatDetail({ params }) {
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const permissions = usePermissions(id);
-  const canManage = permissions.canManageCycle;
+  const canManage = permissions.canManageHealth;
 
   const [form, setForm] = useState({
     start_date: "",
