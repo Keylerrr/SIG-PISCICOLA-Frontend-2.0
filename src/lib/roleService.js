@@ -300,6 +300,28 @@ export async function getFarmMembers(farmId, token = null) {
 }
 
 /**
+ * GET /api/users/me/permissions/?farm_id=<farm_id>
+ * Obtiene los permisos efectivos del usuario autenticado para una granja.
+ */
+export async function getCurrentUserFarmPermissions(farmId, token = null) {
+  const params = new URLSearchParams({ farm_id: String(farmId) });
+  const url = buildApiUrl(`/users/me/permissions/?${params.toString()}`);
+  const res = await fetch(url, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+
+  const data = await handleResponse(
+    res,
+    "Error al obtener los permisos efectivos de la granja"
+  );
+  if (!data || !Array.isArray(data.modules)) {
+    throw new Error("La respuesta de permisos no contiene una lista de módulos válida.");
+  }
+  return data;
+}
+
+/**
  * GET /api/farms/<farm_id>/members/<user_id>/
  * Consulta la información específica de un miembro.
  */

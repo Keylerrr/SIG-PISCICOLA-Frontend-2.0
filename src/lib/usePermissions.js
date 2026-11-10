@@ -5,7 +5,10 @@ import {
   hasAppPermission,
   canAccessModule,
 } from "@/lib/permissions";
-import { getFarmMembers, getFarmRoles } from "@/lib/roleService";
+import {
+  getFarmMember,
+  getCurrentUserFarmPermissions,
+} from "@/lib/roleService";
 
 function normalizeRole(role) {
   if (!role) return "";
@@ -26,6 +29,7 @@ export function usePermissions(farmId) {
     legacyPermissions: [],
     currentMember: null,
     loading: true,
+    permissionsError: null,
   });
 
   useEffect(() => {
@@ -34,10 +38,15 @@ export function usePermissions(farmId) {
     async function loadPermissions() {
       const token =
         typeof window !== "undefined" ? localStorage.getItem("access") : null;
-      const user =
-        typeof window !== "undefined"
-          ? JSON.parse(localStorage.getItem("user") || "null")
-          : null;
+      let user = null;
+      try {
+        user =
+          typeof window !== "undefined"
+            ? JSON.parse(localStorage.getItem("user") || "null")
+            : null;
+      } catch (error) {
+        console.error("Error al leer el usuario de la sesión:", error);
+      }
 
       const normalizedRole = normalizeRole(user?.role);
       const isAdmin = normalizedRole === "admin";
@@ -57,103 +66,79 @@ export function usePermissions(farmId) {
             legacyPermissions: [],
             currentMember: null,
             loading: false,
+            permissionsError: null,
           });
         }
         return;
       }
 
       try {
-        // Obtenemos los miembros de la granja actual de forma estrictamente aislada
-        const members = await getFarmMembers(farmId, token);
-        const me = Array.isArray(members)
-          ? members.find((member) => member?.user?.id === user?.id)
-          : null;
+        const effectivePermissions = await getCurrentUserFarmPermissions(
+          farmId,
+          token
+        );
+        const appPermissions = effectivePermissions.modules
+          .filter((item) => item?.module)
+          .map((item) => {
+            const operations = new Set(
+              Array.isArray(item.permissions)
+                ? item.permissions.map((operation) =>
+                    String(operation).toLowerCase()
+                  )
+                : []
+            );
+            const canView = operations.has("view");
+            const canCreate = operations.has("create");
+            const canEdit =
+              operations.has("edit") || operations.has("update");
+            const canDelete = operations.has("delete");
 
-        const isFarmMember = Boolean(me);
-        const isOwner = Boolean(me?.is_owner);
-        const isActive = me ? me.status === "active" : false;
-
-        let roleData = null;
-        let appPermissions = [];
-        let particularPermissions = [];
-        let legacyPermissions = [];
-
-        // Si la membresía está activa (o el usuario es admin/propietario)
-        if (isAdmin || isOwner || isActive) {
-          if (Array.isArray(me?.permissions)) {
-            particularPermissions = [...me.permissions];
-            legacyPermissions = [...me.permissions];
-          }
-
-          if (Array.isArray(me?.app_permissions)) {
-            appPermissions = [...me.app_permissions];
-          }
-
-          // Si tiene un farm_role asignado, cargamos el rol y sus permisos de la granja
-          if (me?.farm_role) {
-            try {
-              const roles = await getFarmRoles(farmId, token);
-              if (Array.isArray(roles)) {
-                roleData = roles.find((r) => r.id === me.farm_role) || null;
-                if (roleData) {
-                  if (Array.isArray(roleData.app_permissions)) {
-                    // Combinar app_permissions evitando duplicados
-                    const existingApps = new Set(
-                      appPermissions.map((p) => p.app)
-                    );
-                    for (const rolePerm of roleData.app_permissions) {
-                      if (!existingApps.has(rolePerm.app)) {
-                        appPermissions.push(rolePerm);
-                      }
-                    }
-                  }
-
-                  // Regla crítica: Un rol configurado con app_permissions no autoriza operaciones
-                  // mediante permissions heredados ni hereda MANAGE_USERS ni MANAGE_FARM.
-                  // Si el rol es antiguo y carece de app_permissions, solo entonces se consideran permisos heredados.
-                  const isConfiguredRole =
-                    Array.isArray(roleData.app_permissions) &&
-                    roleData.app_permissions.length > 0;
-
-                  if (
-                    !isConfiguredRole &&
-                    Array.isArray(roleData.permissions)
-                  ) {
-                    const setLeg = new Set(legacyPermissions);
-                    for (const p of roleData.permissions) {
-                      if (
-                        p !== PERMISSIONS.MANAGE_USERS &&
-                        p !== PERMISSIONS.MANAGE_FARM
-                      ) {
-                        setLeg.add(p);
-                      }
-                    }
-                    legacyPermissions = Array.from(setLeg);
-                  }
-                }
-              }
-            } catch (roleErr) {
-              console.error("Error al cargar roles de la granja:", roleErr);
-            }
-          }
-        }
+            return {
+              app: item.module,
+              module: item.module,
+              can_view: canView,
+              can_create: canCreate,
+              can_edit: canEdit,
+              can_update: canEdit,
+              can_delete: canDelete,
+            };
+          });
 
         if (mounted) {
           setState({
-            isFarmMember,
-            isOwner,
+            isFarmMember: !isAdmin,
+            isOwner: false,
             isAdmin,
             isProductor,
-            farmRole: me?.farm_role || null,
-            roleData,
+            farmRole: null,
+            roleData: null,
             appPermissions,
-            particularPermissions,
-            legacyPermissions,
-            currentMember: me,
+            particularPermissions: [],
+            legacyPermissions: [],
+            currentMember: null,
             loading: false,
+            permissionsError: null,
           });
         }
+
+        if (user?.id != null) {
+          try {
+            const me = await getFarmMember(farmId, user.id, token);
+            if (mounted) {
+              setState((current) => ({
+                ...current,
+                isFarmMember: true,
+                isOwner: Boolean(me?.is_owner),
+                farmRole: me?.farm_role ?? me?.farm_role_id ?? null,
+                currentMember: me,
+              }));
+            }
+          } catch {
+            // La consulta de metadatos de membresía no bloquea la carga de módulos.
+          }
+        }
       } catch (error) {
+        console.error("Error al cargar los permisos efectivos de la granja:", error);
         if (mounted) {
           setState({
             isFarmMember: false,
@@ -167,6 +152,7 @@ export function usePermissions(farmId) {
             legacyPermissions: [],
             currentMember: null,
             loading: false,
+            permissionsError: error.message || "No se pudieron cargar los permisos de la granja.",
           });
         }
       }
@@ -191,9 +177,14 @@ export function usePermissions(farmId) {
   const can = useCallback(
     (appKey, action = "view") => {
       if (hasFullAccess) return true;
-      return hasAppPermission(state.appPermissions, appKey, action);
+      return canAccessModule({
+        appPermissions: state.appPermissions,
+        legacyPermissions: state.legacyPermissions,
+        moduleName: appKey,
+        action,
+      });
     },
-    [hasFullAccess, state.appPermissions]
+    [hasFullAccess, state.appPermissions, state.legacyPermissions]
   );
 
   const canView = useCallback((appKey) => can(appKey, "view"), [can]);
@@ -228,6 +219,7 @@ export function usePermissions(farmId) {
     if (hasFullAccess) return true;
     return (
       hasAppPermission(state.appPermissions, "audit_logs", "view") ||
+      hasAppPermission(state.appPermissions, "core_auditlogs", "view") ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_USERS) ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
     );
@@ -239,6 +231,7 @@ export function usePermissions(farmId) {
     if (hasFullAccess) return true;
     return (
       hasAppPermission(state.appPermissions, "core_alerts", "view") ||
+      hasAppPermission(state.appPermissions, "alerts", "view") ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
     );
   }, [hasFullAccess, state.appPermissions, state.particularPermissions]);

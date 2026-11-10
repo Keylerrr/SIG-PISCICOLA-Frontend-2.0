@@ -1,9 +1,5 @@
 "use client";
 
-import {
-  hasPermission,
-  PERMISSIONS,
-} from "@/lib/permissions";
 import { usePermissions } from "@/lib/usePermissions";
 import { buildApiUrl } from "@/lib/apiConfig";
 import { clearSession } from "@/lib/auth";
@@ -124,8 +120,6 @@ export default function Granja({ params }) {
 
   const router = useRouter();
 
-  const [myPermissions, setMyPermissions] = useState([]);
-  const [myMember, setMyMember] = useState(null);
   const [userData, setUserData] = useState(null);
 
   useEffect(() => {
@@ -234,42 +228,9 @@ export default function Granja({ params }) {
       .catch((err) => console.error(err));
   }, []);
 
-  useEffect(() => {
-    const token = localStorage.getItem("access");
-
-    let userId = null;
-
-    try {
-      const userObj = JSON.parse(localStorage.getItem("user"));
-
-      if (userObj) {
-        userId = userObj.id;
-      }
-    } catch (e) {}
-
-    fetch(buildApiUrl(`/farms/${id}/members/`), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const me = data.find(
-            (member) => member.user?.id === userId
-          );
-
-          if (me) {
-            setMyMember(me);
-            setMyPermissions(me.permissions || []);
-          }
-        }
-      });
-  }, [id]);
-
   const farmPermissions = usePermissions(id);
 
-  const isFarmOwner = farmPermissions.isOwner || myMember?.is_owner;
+  const isFarmOwner = farmPermissions.isOwner;
 
   const isProductor =
     farmPermissions.isProductor ||
@@ -291,61 +252,38 @@ export default function Granja({ params }) {
 
   const canManagePonds =
     hasFullAccess ||
-    farmPermissions.canManagePonds ||
-    isFarmOwner ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_POND
-    );
+    farmPermissions.canManagePonds;
 
   const canManageCycles =
     hasFullAccess ||
-    farmPermissions.canManageCycle ||
-    isFarmOwner ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_CYCLE
-    );
+    farmPermissions.canManageCycle;
 
   const canManageFarm =
     hasFullAccess ||
-    farmPermissions.canManageFarm ||
-    isFarmOwner ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_FARM
-    );
+    farmPermissions.canManageFarm;
 
   const canManageInventory =
     hasFullAccess ||
-    farmPermissions.canManageInventory ||
-    isFarmOwner ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_INVENTORY
-    );
+    farmPermissions.canManageInventory;
 
   const canManageSales =
     hasFullAccess ||
-    farmPermissions.canManageSales ||
-    isFarmOwner ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_INVENTORY
-    );
+    farmPermissions.canManageSales;
 
   const canManageUsers =
     hasFullAccess ||
-    farmPermissions.canManageUsers ||
-    isFarmOwner ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_USERS
-    ) ||
-    hasPermission(
-      myPermissions,
-      PERMISSIONS.MANAGE_FARM
-    );
+    farmPermissions.canManageUsers;
+
+  const canViewProductionPlans =
+    hasFullAccess ||
+    farmPermissions.canView("production_cycles");
+  const canViewProductionBatches =
+    hasFullAccess ||
+    farmPermissions.canView("production_batches") ||
+    farmPermissions.canView("harvest_management");
+  const canViewFeedingSchedules =
+    hasFullAccess ||
+    farmPermissions.canView("feeding_management");
 
   const canAccessPersonal =
     canManageUsers ||
@@ -358,8 +296,16 @@ export default function Granja({ params }) {
      - "href": abre la ruta existente (las rutas no cambian).
      Los permisos son los mismos que tenían los botones originales. */
   const mainTabs = [
-    { key: "produccion", label: "Producción", icon: Factory, visible: true },
-    { key: "estanques", label: "Estanques", icon: Waves, visible: true },
+    {
+      key: "produccion",
+      label: "Producción",
+      icon: Factory,
+      visible:
+        canViewProductionPlans ||
+        canViewProductionBatches ||
+        canViewFeedingSchedules,
+    },
+    { key: "estanques", label: "Estanques", icon: Waves, visible: canManagePonds },
     {
       key: "inventario",
       label: "Inventario",
@@ -381,14 +327,23 @@ export default function Granja({ params }) {
   ];
 
   const subTabs = [
-    { key: "planes", label: "Planes" },
-    { key: "lotes", label: "Lotes" },
+    { key: "planes", label: "Planes", visible: canViewProductionPlans },
+    { key: "lotes", label: "Lotes", visible: canViewProductionBatches },
     {
       key: "cronogramas",
       label: "Cronogramas",
       icon: CalendarClock,
+      visible: canViewFeedingSchedules,
     },
   ];
+  const visibleMainTabs = mainTabs.filter((mainTab) => mainTab.visible);
+  const activeTab = visibleMainTabs.some((mainTab) => mainTab.key === tab)
+    ? tab
+    : visibleMainTabs[0]?.key;
+  const visibleSubTabs = subTabs.filter((subTabItem) => subTabItem.visible);
+  const activeSubTab = visibleSubTabs.some((item) => item.key === subTab)
+    ? subTab
+    : visibleSubTabs[0]?.key;
 
   return (
     <div className="relative min-h-screen bg-slate-50">
@@ -470,18 +425,25 @@ export default function Granja({ params }) {
           </dl>
         </header>
 
+        {farmPermissions.permissionsError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          >
+            {farmPermissions.permissionsError}
+          </div>
+        )}
+
         {/* PESTAÑAS PRINCIPALES */}
         <div
           role="tablist"
           aria-label="Secciones de la granja"
           className="flex gap-1 overflow-x-auto border-b border-slate-200"
         >
-          {mainTabs
-            .filter((t) => t.visible)
-            .map((t) => {
+          {visibleMainTabs.map((t) => {
               const Icon = t.icon;
               const isLink = Boolean(t.href);
-              const active = !isLink && tab === t.key;
+              const active = !isLink && activeTab === t.key;
 
               return (
                 <button
@@ -510,15 +472,18 @@ export default function Granja({ params }) {
             })}
         </div>
 
-        {/* Los módulos permanecen montados y solo se ocultan:
-            no se pierden datos ni se repiten las consultas al cambiar de pestaña. */}
+        {visibleMainTabs.length === 0 && !farmPermissions.loading && (
+          <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+            No tienes módulos habilitados para esta granja.
+          </p>
+        )}
 
         {/* ===== PRODUCCIÓN (con subpestañas) ===== */}
         <div
           role="tabpanel"
           id="panel-produccion"
           aria-labelledby="tab-produccion"
-          hidden={tab !== "produccion"}
+          hidden={activeTab !== "produccion"}
           className="space-y-5"
         >
           <div
@@ -526,10 +491,10 @@ export default function Granja({ params }) {
             aria-label="Producción"
             className="inline-flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-200/70 p-1"
           >
-            {subTabs.map((s) => {
+            {visibleSubTabs.map((s) => {
               const Icon = s.icon;
               const isLink = Boolean(s.href);
-              const active = !isLink && subTab === s.key;
+              const active = !isLink && activeSubTab === s.key;
 
               return (
                 <button
@@ -563,7 +528,7 @@ export default function Granja({ params }) {
             role="tabpanel"
             id="subpanel-planes"
             aria-labelledby="subtab-planes"
-            hidden={subTab !== "planes"}
+            hidden={activeSubTab !== "planes"}
             className="space-y-4"
           >
             <ModuleHeader
@@ -608,10 +573,11 @@ export default function Granja({ params }) {
               onChange={setSearchPlan}
             />
 
-            <ProductionPlans
-              id={id}
-              search={searchPlan}
-            />
+            {activeTab === "produccion" &&
+              activeSubTab === "planes" &&
+              canViewProductionPlans && (
+                <ProductionPlans id={id} search={searchPlan} />
+              )}
           </section>
 
           {/* LOTES */}
@@ -619,7 +585,7 @@ export default function Granja({ params }) {
             role="tabpanel"
             id="subpanel-lotes"
             aria-labelledby="subtab-lotes"
-            hidden={subTab !== "lotes"}
+            hidden={activeSubTab !== "lotes"}
             className="space-y-4 pb-8"
           >
             <ModuleHeader
@@ -674,10 +640,11 @@ export default function Granja({ params }) {
               onChange={setSearchBatch}
             />
 
-            <Batches
-              id={id}
-              search={searchBatch}
-            />
+            {activeTab === "produccion" &&
+              activeSubTab === "lotes" &&
+              canViewProductionBatches && (
+                <Batches id={id} search={searchBatch} />
+              )}
           </section>
 
           {/* CRONOGRAMAS (antes la página de Alimentación) */}
@@ -685,10 +652,12 @@ export default function Granja({ params }) {
             role="tabpanel"
             id="subpanel-cronogramas"
             aria-labelledby="subtab-cronogramas"
-            hidden={subTab !== "cronogramas"}
+            hidden={activeSubTab !== "cronogramas"}
             className="pb-8"
           >
-            {tab === "produccion" && subTab === "cronogramas" && (
+            {activeTab === "produccion" &&
+              activeSubTab === "cronogramas" &&
+              canViewFeedingSchedules && (
               <FeedingSchedules id={id} />
             )}
           </section>
@@ -699,7 +668,7 @@ export default function Granja({ params }) {
           role="tabpanel"
           id="panel-estanques"
           aria-labelledby="tab-estanques"
-          hidden={tab !== "estanques"}
+          hidden={activeTab !== "estanques"}
           className="space-y-4 pb-8"
         >
           <ModuleHeader
@@ -770,11 +739,9 @@ export default function Granja({ params }) {
             </Select>
           </div>
 
-          <Ponds
-            id={id}
-            search={search}
-            filter={filter}
-          />
+          {activeTab === "estanques" && canManagePonds && (
+            <Ponds id={id} search={search} filter={filter} />
+          )}
         </section>
 
         {/* ===== INVENTARIO (antes /inventory) ===== */}
@@ -782,12 +749,20 @@ export default function Granja({ params }) {
           role="tabpanel"
           id="panel-inventario"
           aria-labelledby="tab-inventario"
-          hidden={tab !== "inventario"}
+          hidden={activeTab !== "inventario"}
           className="pb-8"
         >
-          {tab === "inventario" && canManageInventory && (
+          {activeTab === "inventario" && canManageInventory && (
             <Suspense fallback={<div>Cargando...</div>}>
-              <InventoryContent farmId={id} />
+              <InventoryContent
+                farmId={id}
+                canViewProducts={
+                  hasFullAccess || farmPermissions.canView("inventory_products")
+                }
+                canViewPurchases={
+                  hasFullAccess || farmPermissions.canView("inventory_purchases")
+                }
+              />
             </Suspense>
           )}
         </section>
@@ -797,10 +772,10 @@ export default function Granja({ params }) {
           role="tabpanel"
           id="panel-ventas"
           aria-labelledby="tab-ventas"
-          hidden={tab !== "ventas"}
+          hidden={activeTab !== "ventas"}
           className="pb-8"
         >
-          {tab === "ventas" && canManageSales && (
+          {activeTab === "ventas" && canManageSales && (
             <Suspense fallback={<div>Cargando...</div>}>
               <SalesContent farmId={id} />
             </Suspense>
@@ -812,10 +787,10 @@ export default function Granja({ params }) {
           role="tabpanel"
           id="panel-personal"
           aria-labelledby="tab-personal"
-          hidden={tab !== "personal"}
+          hidden={activeTab !== "personal"}
           className="pb-8"
         >
-          {tab === "personal" && canAccessPersonal && (
+          {activeTab === "personal" && canAccessPersonal && (
             <FarmWorkers id={id} />
           )}
         </section>

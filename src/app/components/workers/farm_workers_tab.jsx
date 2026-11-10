@@ -146,7 +146,12 @@ const getAuditFieldLabel = (field) =>
 const formatAuditValue = (value) => {
   if (value === null || value === undefined || value === "") return "Ninguno";
   if (typeof value === "boolean") return value ? "Sí" : "No";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "object") {
+    if (value.nombre) return value.nombre;
+    if (value.name) return value.name;
+    if (value.id !== undefined) return `#${value.id}`;
+    return JSON.stringify(value);
+  }
   return String(value);
 };
 
@@ -164,17 +169,55 @@ const getAuditChanges = (log) => {
     log?.old_values && typeof log.old_values === "object" ? log.old_values : {};
   const newValues =
     log?.new_values && typeof log.new_values === "object" ? log.new_values : {};
-  const fields = [...new Set([...Object.keys(oldValues), ...Object.keys(newValues)])];
+  const oldDisplayFields = oldValues.display?.fields;
+  const newDisplayFields = newValues.display?.fields;
+  const hasDisplayFields =
+    (oldDisplayFields && typeof oldDisplayFields === "object") ||
+    (newDisplayFields && typeof newDisplayFields === "object");
+  const fields = hasDisplayFields
+    ? [
+        ...new Set([
+          ...Object.keys(oldDisplayFields || {}),
+          ...Object.keys(newDisplayFields || {}),
+        ]),
+      ]
+    : [
+        ...new Set([...Object.keys(oldValues), ...Object.keys(newValues)]),
+      ].filter((field) => field !== "display");
+
+  const getField = (values, displayFields, field) => {
+    if (
+      displayFields &&
+      Object.prototype.hasOwnProperty.call(displayFields, field)
+    ) {
+      return displayFields[field];
+    }
+    return { label: getAuditFieldLabel(field), value: values[field] };
+  };
 
   return fields
-    .filter((field) => JSON.stringify(oldValues[field]) !== JSON.stringify(newValues[field]))
-    .map((field) => ({
-      field,
-      label: getAuditFieldLabel(field),
-      before: oldValues[field] ?? null,
-      after: newValues[field] ?? null,
-    }));
+    .map((field) => {
+      const oldField = getField(oldValues, oldDisplayFields, field);
+      const newField = getField(newValues, newDisplayFields, field);
+      return {
+        field,
+        label: newField.label || oldField.label || getAuditFieldLabel(field),
+        before: oldField.value ?? null,
+        after: newField.value ?? null,
+        changed:
+          JSON.stringify(oldField.value ?? null) !==
+          JSON.stringify(newField.value ?? null),
+      };
+    })
+    .filter((change) => change.changed);
 };
+
+const getAuditSummary = (log) =>
+  log?.description ||
+  log?.new_values?.display?.summary ||
+  log?.old_values?.display?.summary ||
+  log?.detail?.summary ||
+  "Sin descripción";
 
 // Tipos de entidades de auditoría admitidos para filtros
 const AUDIT_TYPE_SOURCES = [
@@ -1884,70 +1927,63 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                    <th className="py-3 px-3">Fecha y Hora</th>
-                    <th className="py-3 px-3">Tipo de Origen</th>
-                    <th className="py-3 px-3">ID Origen</th>
-                    <th className="py-3 px-3">Descripción</th>
-                    <th className="py-3 px-3">Usuario</th>
-                    <th className="py-3 px-3">IP</th>
-                    <th className="py-3 px-3 text-right">Detalle</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {auditLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50/60">
-                      <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">
-                        {log.created_at
-                          ? new Date(log.created_at).toLocaleString("es-CO", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })
-                          : "—"}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="inline-block text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+            <div className="space-y-3">
+              {auditLogs.map((log) => (
+                <article
+                  key={log.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-blue-200 hover:bg-slate-50/50"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
                           {getAuditTypeLabel(log.type_source)}
                         </span>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-xs text-slate-500">
-                        {log.source_id ? `#${log.source_id}` : "—"}
-                      </td>
-                      <td className="py-3 px-3 text-xs text-slate-800 font-medium max-w-xs truncate">
-                        {log.detail?.summary || log.description || "Sin descripción"}
-                      </td>
-                      <td className="py-3 px-3 text-xs text-slate-600">
-                        {log.user_name ? (
-                          <span className="font-medium">{log.user_name}</span>
-                        ) : log.user ? (
-                          <span className="font-mono text-slate-500">Usuario #{log.user}</span>
-                        ) : (
-                          <span className="text-slate-400 italic">
-                            Sistema / Automático
+                        <span className="font-mono text-[11px] text-slate-400">
+                          Registro #{log.id}
+                        </span>
+                        {log.source_id != null && (
+                          <span className="font-mono text-[11px] text-slate-500">
+                            Origen #{log.source_id}
                           </span>
                         )}
-                      </td>
-                      <td className="py-3 px-3 font-mono text-xs text-slate-500">
-                        {log.ip || <span className="text-slate-400 italic">No registrada</span>}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleOpenAuditDetail(log)}
-                          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          <Eye className="w-3.5 h-3.5 mr-1" />
-                          Ver
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                      <p className="text-sm font-medium leading-relaxed text-slate-800">
+                        {getAuditSummary(log)}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span className="inline-flex items-center gap-1.5">
+                          <UserCheck className="h-3.5 w-3.5 text-slate-400" />
+                          {log.user_name ||
+                            (log.user ? `Usuario #${log.user}` : "Sistema / Automático")}
+                        </span>
+                        <span>
+                          {log.created_at
+                            ? new Date(log.created_at).toLocaleString("es-CO", {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })
+                            : "Fecha no disponible"}
+                        </span>
+                        {log.ip && (
+                          <span className="font-mono text-slate-400">
+                            IP {log.ip}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenAuditDetail(log)}
+                      className="shrink-0 text-blue-700 hover:bg-blue-50"
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      Ver cambios
+                    </Button>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </div>
@@ -2790,19 +2826,17 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
               {/* DESCRIPCIÓN */}
               <div className="p-3 rounded-xl border border-slate-200 bg-white">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase">
-                  Descripción de la Operación
+                  ¿Qué ocurrió?
                 </span>
-                <p className="font-medium text-slate-800 mt-1">
-                  {selectedAuditLog.detail?.summary ||
-                    selectedAuditLog.description ||
-                    "Sin descripción proporcionada"}
+                <p className="mt-1 font-medium leading-relaxed text-slate-800">
+                  {getAuditSummary(selectedAuditLog)}
                 </p>
               </div>
 
               {/* COMPARACIÓN DE VALORES */}
               <div className="space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Cambios realizados
+                  Detalle de los cambios
                 </span>
                 {selectedAuditLog.old_values === null && selectedAuditLog.new_values ? (
                   <p className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
@@ -2817,22 +2851,35 @@ export function FarmWorkers({ id, showBackButton = false, onBack = null }) {
                 {getAuditChanges(selectedAuditLog).length > 0 ? (
                   <div className="divide-y rounded-xl border border-slate-200 overflow-hidden">
                     {getAuditChanges(selectedAuditLog).map((change, index) => (
-                      <div key={`${change.field}-${index}`} className="grid grid-cols-[1fr_1fr_1fr] gap-3 bg-white px-3 py-3">
-                        <span className="font-semibold text-slate-800">{change.label}</span>
-                        <div>
-                          <span className="block text-[9px] font-bold uppercase text-red-500">Antes</span>
-                          <span className="text-slate-600">{formatAuditValue(change.before)}</span>
+                      <div
+                        key={`${change.field}-${index}`}
+                        className="grid grid-cols-1 gap-2 bg-white px-3 py-3 sm:grid-cols-[minmax(7rem,0.8fr)_1fr_1fr] sm:gap-3"
+                      >
+                        <span className="font-semibold text-slate-800">
+                          {change.label}
+                        </span>
+                        <div className="min-w-0 rounded-lg bg-red-50/70 px-2.5 py-2">
+                          <span className="block text-[9px] font-bold uppercase text-red-500">
+                            Antes
+                          </span>
+                          <span className="break-words text-slate-700">
+                            {formatAuditValue(change.before)}
+                          </span>
                         </div>
-                        <div>
-                          <span className="block text-[9px] font-bold uppercase text-emerald-600">Después</span>
-                          <span className="font-medium text-slate-800">{formatAuditValue(change.after)}</span>
+                        <div className="min-w-0 rounded-lg bg-emerald-50/70 px-2.5 py-2">
+                          <span className="block text-[9px] font-bold uppercase text-emerald-600">
+                            Después
+                          </span>
+                          <span className="break-words font-medium text-slate-800">
+                            {formatAuditValue(change.after)}
+                          </span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic p-4 rounded-xl border border-dashed border-slate-200 text-center">
-                    No hay cambios estructurados disponibles.
+                  <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs italic text-slate-400">
+                    Este registro no incluye cambios de campos para comparar.
                   </p>
                 )}
               </div>

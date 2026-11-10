@@ -1,24 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Package, Truck, ShoppingCart, ArrowRightLeft, ArrowLeft } from "lucide-react";
+import { Package, Truck, ShoppingCart, ArrowRightLeft } from "lucide-react";
 import { ProductsTab } from "@/app/components/inventory/ProductsTab";
 import { SuppliersTab } from "@/app/components/inventory/SuppliersTab";
 import { BuysTab } from "@/app/components/inventory/BuysTab";
 import { MovementsTab } from "@/app/components/inventory/MovementsTab";
 import { Toaster } from "sonner";
 
-export default function InventoryContent({ farmId }) {
-  const [activeTab, setActiveTab] = useState("products");
-  const router = useRouter();
+export default function InventoryContent({
+  farmId,
+  canViewProducts = false,
+  canViewPurchases = false,
+}) {
+  const [selectedTab, setSelectedTab] = useState("products");
 
   const tabs = [
-    { id: "products", name: "Productos", icon: Package },
-    { id: "suppliers", name: "Proveedores", icon: Truck },
-    { id: "buys", name: "Compras", icon: ShoppingCart },
-    { id: "movements", name: "Movimientos", icon: ArrowRightLeft },
+    { id: "products", name: "Productos", icon: Package, visible: canViewProducts },
+    { id: "suppliers", name: "Proveedores", icon: Truck, visible: canViewPurchases },
+    { id: "buys", name: "Compras", icon: ShoppingCart, visible: canViewPurchases },
+    { id: "movements", name: "Movimientos", icon: ArrowRightLeft, visible: canViewProducts },
   ];
+  const visibleTabs = tabs.filter((tab) => tab.visible);
+  const activeTab = visibleTabs.some((tab) => tab.id === selectedTab)
+    ? selectedTab
+    : visibleTabs[0]?.id;
 
   return (
     <div>
@@ -34,13 +40,14 @@ export default function InventoryContent({ farmId }) {
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-50">
-            {tabs.map(tab => {
+            {visibleTabs.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  type="button"
+                  onClick={() => setSelectedTab(tab.id)}
                   className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap transition-colors ${
                     isActive 
                       ? "text-blue-600 border-b-2 border-blue-600 bg-white" 
@@ -55,10 +62,23 @@ export default function InventoryContent({ farmId }) {
           </div>
 
           <div className="p-6 overflow-x-auto">
-            {activeTab === "products" && <ProductsTab farmId={farmId} />}
-            {activeTab === "suppliers" && <SuppliersTab farmId={farmId} />}
-            {activeTab === "buys" && <BuysTab farmId={farmId} />}
-            {activeTab === "movements" && <MovementsTab farmId={farmId} />}
+            {activeTab === "products" && canViewProducts && (
+              <ProductsTab farmId={farmId} />
+            )}
+            {activeTab === "suppliers" && canViewPurchases && (
+              <SuppliersTab farmId={farmId} />
+            )}
+            {activeTab === "buys" && canViewPurchases && (
+              <BuysTab farmId={farmId} />
+            )}
+            {activeTab === "movements" && canViewProducts && (
+              <MovementsTab farmId={farmId} />
+            )}
+            {visibleTabs.length === 0 && (
+              <p className="text-sm text-slate-500">
+                No tienes permisos para ver los módulos de inventario.
+              </p>
+            )}
           </div>
         </div>
 

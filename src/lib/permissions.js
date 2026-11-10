@@ -138,15 +138,28 @@ export function canAccessModule({
   // Mapeos comunes entre módulos y apps del backend / permisos heredados
   const map = {
     production: {
-      apps: ["production", "cycles", "produccion"],
+      apps: [
+        "production",
+        "cycles",
+        "produccion",
+        "production_batches",
+        "production_cycles",
+        "harvest_management",
+      ],
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
     },
     cycles: {
-      apps: ["production", "cycles", "produccion"],
+      apps: [
+        "production",
+        "cycles",
+        "produccion",
+        "production_batches",
+        "production_cycles",
+      ],
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
     },
     ponds: {
-      apps: ["ponds", "estanques"],
+      apps: ["ponds", "estanques", "pond_management"],
       legacy: [PERMISSIONS.MANAGE_POND, PERMISSIONS.MANAGE_FARM],
     },
     inventory: {
@@ -159,19 +172,19 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_INVENTORY, PERMISSIONS.MANAGE_FARM],
     },
     farms: {
-      apps: ["farms", "granjas", "farm_management"],
+      apps: ["farms", "granjas", "farm_management", "farm_events"],
       legacy: [PERMISSIONS.MANAGE_FARM],
     },
     health: {
-      apps: ["health", "salud"],
+      apps: ["health", "salud", "fish_health"],
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_REVIEWS, PERMISSIONS.MANAGE_FARM],
     },
     feeding: {
-      apps: ["feeding", "alimentacion"],
+      apps: ["feeding", "alimentacion", "feeding_management"],
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_REVIEWS, PERMISSIONS.MANAGE_FARM],
     },
     monitoring: {
-      apps: ["monitoring", "monitoreo"],
+      apps: ["monitoring", "monitoreo", "water_quality_monitoring"],
       legacy: [PERMISSIONS.MANAGE_REVIEWS, PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
     },
     sales: {
@@ -179,7 +192,7 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_INVENTORY, PERMISSIONS.MANAGE_FARM],
     },
     harvest: {
-      apps: ["harvest", "cosecha", "production"],
+      apps: ["harvest", "cosecha", "production", "harvest_management"],
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
     },
     users: {
@@ -191,15 +204,15 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     audit: {
-      apps: ["audit_logs"],
+      apps: ["audit_logs", "core_auditlogs"],
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     auditlogs: {
-      apps: ["audit_logs"],
+      apps: ["audit_logs", "core_auditlogs"],
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     alerts: {
-      apps: ["alerts"],
+      apps: ["alerts", "core_alerts"],
       legacy: [],
     },
   };
