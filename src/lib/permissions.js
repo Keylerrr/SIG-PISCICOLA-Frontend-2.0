@@ -150,11 +150,16 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_POND, PERMISSIONS.MANAGE_FARM],
     },
     inventory: {
-      apps: ["inventory", "inventario"],
+      apps: [
+        "inventory",
+        "inventario",
+        "inventory_products",
+        "inventory_purchases",
+      ],
       legacy: [PERMISSIONS.MANAGE_INVENTORY, PERMISSIONS.MANAGE_FARM],
     },
     farms: {
-      apps: ["farms", "granjas"],
+      apps: ["farms", "granjas", "farm_management"],
       legacy: [PERMISSIONS.MANAGE_FARM],
     },
     health: {
@@ -170,7 +175,7 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_REVIEWS, PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
     },
     sales: {
-      apps: ["sales", "ventas"],
+      apps: ["sales", "ventas", "inventory_sales"],
       legacy: [PERMISSIONS.MANAGE_INVENTORY, PERMISSIONS.MANAGE_FARM],
     },
     harvest: {
@@ -178,11 +183,11 @@ export function canAccessModule({
       legacy: [PERMISSIONS.MANAGE_CYCLE, PERMISSIONS.MANAGE_FARM],
     },
     users: {
-      apps: ["users", "members"],
+      apps: ["users", "members", "user_administration"],
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     personal: {
-      apps: ["users", "members"],
+      apps: ["users", "members", "user_administration"],
       legacy: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_FARM],
     },
     audit: {

@@ -325,6 +325,15 @@ export default function Granja({ params }) {
       PERMISSIONS.MANAGE_INVENTORY
     );
 
+  const canManageSales =
+    hasFullAccess ||
+    farmPermissions.canManageSales ||
+    isFarmOwner ||
+    hasPermission(
+      myPermissions,
+      PERMISSIONS.MANAGE_INVENTORY
+    );
+
   const canManageUsers =
     hasFullAccess ||
     farmPermissions.canManageUsers ||
@@ -361,7 +370,7 @@ export default function Granja({ params }) {
       key: "ventas",
       label: "Ventas",
       icon: Receipt,
-      visible: canManageInventory,
+      visible: canManageSales,
     },
     {
       key: "personal",
@@ -791,7 +800,7 @@ export default function Granja({ params }) {
           hidden={tab !== "ventas"}
           className="pb-8"
         >
-          {tab === "ventas" && canManageInventory && (
+          {tab === "ventas" && canManageSales && (
             <Suspense fallback={<div>Cargando...</div>}>
               <SalesContent farmId={id} />
             </Suspense>

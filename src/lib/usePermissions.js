@@ -202,14 +202,25 @@ export function usePermissions(farmId) {
   const canDelete = useCallback((appKey) => can(appKey, "delete"), [can]);
 
   // Gestión de usuarios y miembros:
-  // Requiere ser propietario/admin o tener explícitamente MANAGE_USERS / MANAGE_FARM en los permisos particulares.
+  // También admite los permisos granulares de user_administration configurados en el rol.
   const canManageUsers = useMemo(() => {
     if (hasFullAccess) return true;
     return (
+      canAccessModule({
+        appPermissions: state.appPermissions,
+        legacyPermissions: state.legacyPermissions,
+        moduleName: "users",
+        action: "view",
+      }) ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_USERS) ||
       hasPermission(state.particularPermissions, PERMISSIONS.MANAGE_FARM)
     );
-  }, [hasFullAccess, state.particularPermissions]);
+  }, [
+    hasFullAccess,
+    state.appPermissions,
+    state.legacyPermissions,
+    state.particularPermissions,
+  ]);
 
   // Módulo de Auditoría por granja (audit_logs):
   // Exclusivo de consulta por app_permissions o permisos generales
