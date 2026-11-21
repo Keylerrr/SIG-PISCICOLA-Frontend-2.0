@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { extractApiErrors } from "@/lib/apiErrors";
+import { API_BASE } from "@/lib/apiConfig";
 import {
   Gauge,
   FileText,
@@ -172,7 +173,7 @@ export function PondRegisterForm({
     };
 
     try {
-      const res = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${idFarmProp}/ponds/`, {
+      const res = await fetch(`${API_BASE}/farms/${idFarmProp}/ponds/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -214,7 +215,7 @@ export function PondRegisterForm({
     };
 
     try {
-      const res = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${idFarmProp}/ponds/${idProp}/`, {
+      const res = await fetch(`${API_BASE}/farms/${idFarmProp}/ponds/${idProp}/`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -219,7 +219,7 @@ export function Ponds({ id, search, filter }) {
                                     <CardAction>
                                         <div className="flex items-center gap-3">
                                             <AlertDialog>
-                                                {!isInactive && (
+                                                {!isInactive && !e.has_active_cycle && (
                                                     <AlertDialogTrigger asChild>
                                                         <Pencil className="cursor-pointer text-blue-600" />
                                                     </AlertDialogTrigger>
@@ -255,7 +255,7 @@ export function Ponds({ id, search, filter }) {
                                                 </AlertDialogContent>
                                             </AlertDialog>
 
-                                            <AlertDialog>
+                                            {!e.has_active_cycle && <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Trash className="text-red-600 cursor-pointer" />
                                                 </AlertDialogTrigger>
@@ -280,7 +280,7 @@ export function Ponds({ id, search, filter }) {
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
-                                            </AlertDialog>
+                                            </AlertDialog>}
                                         </div>
                                     </CardAction>
                                 </CardHeader>
@@ -307,7 +307,7 @@ export function Ponds({ id, search, filter }) {
                                         )}
                                         <Switch
                                             checked={switchOn}
-                                            disabled={isToggling}
+                                            disabled={isToggling || e.has_active_cycle}
                                             onCheckedChange={(checked) =>
                                                 handleStatusToggle(e, checked)
                                             }
@@ -319,6 +319,11 @@ export function Ponds({ id, search, filter }) {
                                         />
                                     </div>
                                 </CardFooter>
+                                {e.has_active_cycle && (
+                                    <p className="px-6 pb-4 text-xs text-amber-700">
+                                        Estado y datos bloqueados mientras el ciclo esté en proceso.
+                                    </p>
+                                )}
                             </Card>
                         </div>
                     );
