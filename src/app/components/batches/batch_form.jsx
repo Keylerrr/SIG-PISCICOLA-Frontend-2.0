@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { API_BASE } from "@/lib/apiConfig";
 
 /* ---------- Piezas visuales (sin lógica de negocio) ---------- */
 
@@ -76,7 +77,7 @@ export function BatchRegisterForm({
     const fetchSpecies = async () => {
       const token = localStorage.getItem("access");
       try {
-        const res = await fetch("https://backend-pongase-trucha.onrender.com/api/species/", {
+        const res = await fetch(`${API_BASE}/species/`, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -173,7 +174,7 @@ export function BatchRegisterForm({
     };
 
     try {
-      const res = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${idFarmProp}/batches/`, {
+      const res = await fetch(`${API_BASE}/farms/${idFarmProp}/batches/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -219,7 +220,7 @@ export function BatchRegisterForm({
     };
 
     try {
-      const res = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${idFarmProp}/batches/${idProp}/`, {
+      const res = await fetch(`${API_BASE}/farms/${idFarmProp}/batches/${idProp}/`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,

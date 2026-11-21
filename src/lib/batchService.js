@@ -1,4 +1,4 @@
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { buildApiUrl } from "./apiConfig";
 
 function getToken() {
   if (typeof window === "undefined") return null;
@@ -10,41 +10,43 @@ function getToken() {
  * Used by the report modal to populate the optional cycle selector.
  *
  * GET /api/farms/{farmId}/batches/{batchId}/cycles/
- * Falls back to GET /api/farms/{farmId}/cycles/?batch={batchId} if needed.
  */
 export async function getBatchCycles(farmId, batchId) {
   const token = getToken();
   const headers = { Authorization: `Bearer ${token}` };
-
-  // Try the dedicated batch-cycles endpoint first
-  try {
-    const res = await fetch(
-      `${API_BASE}/farms/${farmId}/batches/${batchId}/cycles/`,
-      { headers }
+  const res = await fetch(
+    buildApiUrl(`/farms/${farmId}/batches/${batchId}/cycles/`),
+    { headers }
+  );
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    const error = new Error(
+      payload?.detail || `No se pudieron cargar los ciclos (HTTP ${res.status}).`
     );
-    if (res.ok) {
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    }
-  } catch {
-    // fall through to the fallback
+    error.status = res.status;
+    error.payload = payload;
+    throw error;
   }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
 
-  // Fallback: query all farm cycles filtered by batch
-  try {
-    const res = await fetch(
-      `${API_BASE}/farms/${farmId}/cycles/?batch=${batchId}`,
-      { headers }
+export async function getBatchTraceability(farmId, batchId) {
+  const token = getToken();
+  const response = await fetch(
+    buildApiUrl(`/farms/${farmId}/batches/${batchId}/traceability/`),
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const error = new Error(
+      payload?.detail || `No se pudo cargar la trazabilidad (HTTP ${response.status}).`
     );
-    if (res.ok) {
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    }
-  } catch {
-    // ignore
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
   }
-
-  return [];
+  return response.json();
 }
 
 /**
@@ -69,7 +71,9 @@ export async function generateProductionReport(farmId, batchId, payload) {
     body.cycle_id = payload.cycle_id;
   }
 
-  const url = `${API_BASE}/farms/${farmId}/batches/${batchId}/production-report/`;
+  const url = buildApiUrl(
+    `/farms/${farmId}/batches/${batchId}/production-report/`
+  );
 
   const response = await fetch(url, {
       method: "POST",
