@@ -85,6 +85,7 @@ export function BatchReportModal({ open, onClose, farmId, batchId, batchLabel })
   const [cycleId, setCycleId]                 = useState("all");
   const [cycles, setCycles]                   = useState([]);
   const [loadingCycles, setLoadingCycles]     = useState(false);
+  const [cyclesError, setCyclesError]         = useState(null);
   const [generating, setGenerating]           = useState(false);
   const [errorMsg, setErrorMsg]               = useState(null);
 
@@ -95,6 +96,7 @@ export function BatchReportModal({ open, onClose, farmId, batchId, batchLabel })
       setFormat("pdf");
       setCycleId("all");
       setErrorMsg(null);
+      setCyclesError(null);
       setGenerating(false);
     }
   }, [open]);
@@ -106,11 +108,17 @@ export function BatchReportModal({ open, onClose, farmId, batchId, batchLabel })
 
     const load = async () => {
       setLoadingCycles(true);
+      setCyclesError(null);
       try {
         const data = await getBatchCycles(farmId, batchId);
         if (!cancelled) setCycles(data);
-      } catch {
-        if (!cancelled) setCycles([]);
+      } catch (error) {
+        if (!cancelled) {
+          setCycles([]);
+          setCyclesError(
+            error?.message || "No se pudieron cargar los ciclos vinculados."
+          );
+        }
       } finally {
         if (!cancelled) setLoadingCycles(false);
       }
@@ -266,9 +274,14 @@ export function BatchReportModal({ open, onClose, farmId, batchId, batchLabel })
               </SelectContent>
             </Select>
             <p className="text-xs text-slate-400">
-              Filtra el reporte a un ciclo específico, o deja en "Todos los ciclos".
+              Filtra el reporte a un ciclo específico, o deja en &quot;Todos los ciclos&quot;.
             </p>
           </div>
+        )}
+        {cyclesError && (
+          <p className="text-xs text-amber-700" role="status">
+            {cyclesError} El reporte aún puede generarse sin filtrar por ciclo.
+          </p>
         )}
 
         {/* ── Footer ── */}
