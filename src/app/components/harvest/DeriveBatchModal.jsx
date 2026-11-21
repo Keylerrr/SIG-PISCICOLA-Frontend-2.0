@@ -3,12 +3,11 @@
 import { useState, useEffect } from "react";
 import { Loader2, X, GitBranch, Fish, MapPin, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/apiConfig";
 import {
     extractApiErrors,
     isAssignablePond,
 } from "./harvestUtils";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 const BIOLOGICAL_STATE_LABELS = {
     alevin: "Alevín",
