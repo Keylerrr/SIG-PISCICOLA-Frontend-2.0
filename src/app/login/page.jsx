@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GuestGuard } from "@/components/auth/AuthGuard";
 import { clearSession, getReasonMessage, getSafeNext } from "@/lib/auth";
+import { API_BASE } from "@/lib/apiConfig";
 import { clearFailedLogins, registerFailedLogin, resolveLoginError } from "@/lib/loginErrors";
 import {
   Field,
@@ -63,7 +64,7 @@ function Login() {
     setIsSending(true);
 
     try {
-      const res = await fetch("https://backend-pongase-trucha.onrender.com/api/auth/reset-password/", {
+      const res = await fetch(`${API_BASE}/auth/reset-password/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -96,7 +97,7 @@ function Login() {
     try {
       const access = localStorage.getItem("access");
       const res2 = await fetch(
-        "https://backend-pongase-trucha.onrender.com/api/users/me/",
+        `${API_BASE}/users/me/`,
         {
           method: "GET",
           headers: {
@@ -141,7 +142,7 @@ function Login() {
 
     try {
       const res = await fetch(
-        "https://backend-pongase-trucha.onrender.com/api/auth/login/",
+        `${API_BASE}/auth/login/`,
         {
           method: "POST",
           headers: {
@@ -191,7 +192,7 @@ function Login() {
     try {
       const token = localStorage.getItem("access");
       // Ajusta este endpoint según lo que espere tu backend para actualizar el perfil
-      const res = await fetch("https://backend-pongase-trucha.onrender.com/api/users/me/complete/", {
+      const res = await fetch(`${API_BASE}/users/me/complete/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -211,7 +212,7 @@ function Login() {
         return;
       }
 
-      const resPassword = await fetch("https://backend-pongase-trucha.onrender.com/api/auth/change-password/", {
+      const resPassword = await fetch(`${API_BASE}/auth/change-password/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

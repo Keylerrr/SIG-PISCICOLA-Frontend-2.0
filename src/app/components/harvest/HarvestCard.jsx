@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { DeriveBatchModal } from "./DeriveBatchModal";
 import { getHarvestTypeLabel } from "./harvestUtils";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 const SIZE_CATEGORY_LABELS = {
     Small: "Pequeño",

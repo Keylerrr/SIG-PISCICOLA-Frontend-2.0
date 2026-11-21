@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FarmRegisterForm } from "./farm_form";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/apiConfig";
 import {
   Select,
   SelectContent,
@@ -44,7 +45,6 @@ import {
 } from "@/lib/farmFilters";
 import { Toaster, toast } from "sonner";
 
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 const WATER_SOURCE_LABELS = {
   river: "Río",
   stream: "Quebrada",

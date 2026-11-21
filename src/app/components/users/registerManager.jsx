@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/apiConfig";
 
 export function RegisterManager() {
   const [productores, setProductores] = useState([]);
@@ -30,7 +31,7 @@ export function RegisterManager() {
 
     try {
       const res = await fetch(
-        "https://backend-pongase-trucha.onrender.com/api/users/productor/",
+        `${API_BASE}/users/productor/`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -63,7 +64,7 @@ export function RegisterManager() {
     const token = localStorage.getItem("access");
 
     await toast.promise(
-      fetch("https://backend-pongase-trucha.onrender.com/api/invitations/productor/", {
+      fetch(`${API_BASE}/invitations/productor/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { API_BASE } from "@/lib/apiConfig";
 import { Toaster, toast } from "sonner";
 
 /* ---------- Piezas visuales (sin lógica de negocio) ---------- */
@@ -75,7 +76,7 @@ export function ProductionPlanForm({
     const fetchSpecies = async () => {
       const token = localStorage.getItem("access");
       try {
-        const res = await fetch("https://backend-pongase-trucha.onrender.com/api/species/", {
+        const res = await fetch(`${API_BASE}/species/`, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -170,7 +171,7 @@ export function ProductionPlanForm({
     const payload = buildPayload();
 
     try {
-      const res = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${farmProp}/production-plans/`, {
+      const res = await fetch(`${API_BASE}/farms/${farmProp}/production-plans/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -206,7 +207,7 @@ export function ProductionPlanForm({
     const payload = buildPayload();
 
     try {
-      const res = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${farmProp}/production-plans/${idProp}/`, {
+      const res = await fetch(`${API_BASE}/farms/${farmProp}/production-plans/${idProp}/`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,

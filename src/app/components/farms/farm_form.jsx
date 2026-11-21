@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/apiConfig";
 
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 const WATER_SOURCES = [
   { value: "river", label: "Río" },
   { value: "stream", label: "Quebrada" },

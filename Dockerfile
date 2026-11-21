@@ -3,6 +3,11 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+ARG NEXT_PUBLIC_API_BASE_URL=https://backend-pongase-trucha.onrender.com/api
+ARG NEXT_PUBLIC_API_AUDIT=false
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_AUDIT=$NEXT_PUBLIC_API_AUDIT
+
 # Habilitar pnpm mediante corepack
 RUN corepack enable
 

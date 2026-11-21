@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/apiConfig";
 import {
   Select,
   SelectContent,
@@ -11,8 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 export function MovementsTab({ farmId }) {
   const [movements, setMovements] = useState([]);

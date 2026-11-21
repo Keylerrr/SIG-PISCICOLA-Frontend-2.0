@@ -20,6 +20,7 @@ import {
     FieldLabel
 } from "@/components/ui/field";
 import { useSearchParams } from 'next/navigation';
+import { API_BASE } from "@/lib/apiConfig";
 
 export default function ResetPasswordContent() {
     const [loginError, setResetError] = useState(false);
@@ -59,7 +60,7 @@ export default function ResetPasswordContent() {
 
         try {
             const res = await fetch(
-                `https://backend-pongase-trucha.onrender.com/api/auth/reset-password/${uuid}/${token}/`,
+                `${API_BASE}/auth/reset-password/${uuid}/${token}/`,
                 {
                     method: "POST",
                     headers: {

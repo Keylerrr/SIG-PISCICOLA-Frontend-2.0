@@ -3,8 +3,7 @@ import {
   isHarvestSellableByWeight,
   parseList,
 } from "./salesUtils";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "./apiConfig";
 
 function buildQuery(params = {}) {
   const query = new URLSearchParams();

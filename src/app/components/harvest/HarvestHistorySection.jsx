@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Fish } from "lucide-react";
 import { HarvestCard } from "./HarvestCard";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 export function HarvestHistorySection({ farmId, cycleId, refreshTrigger = 0 }) {
     const [harvests, setHarvests] = useState([]);

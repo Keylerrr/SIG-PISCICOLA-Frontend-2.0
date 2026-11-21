@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/apiConfig";
 import { Loader2 } from "lucide-react";
 import {
   buildLoginUrl,
@@ -12,8 +13,6 @@ import {
   hasValidSession,
 } from "@/lib/auth";
 import { installSessionWatch } from "@/lib/sessionWatch";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://backend-pongase-trucha.onrender.com/api";
 
 function FullScreenSpinner({ label }) {
   return (

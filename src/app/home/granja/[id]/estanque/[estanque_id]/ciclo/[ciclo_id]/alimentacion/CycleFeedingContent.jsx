@@ -9,8 +9,7 @@ import { toast } from "sonner";
 import { feedingService } from "@/lib/feedingService";
 import { usePermissions } from "@/lib/usePermissions";
 import { FeedingPlanForm } from "@/app/components/feeding/feeding_plan_form";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 const STATE_COLORS = {
   scheduled: "bg-slate-100 text-slate-700",

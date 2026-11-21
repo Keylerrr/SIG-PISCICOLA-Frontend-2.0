@@ -3,14 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Loader2, Plus, Trash2, Fish, Scale, AlertCircle, Info, CheckCircle2, Calendar, FileText, X } from "lucide-react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/apiConfig";
 import {
     extractApiErrors,
     formatBiomassKg,
     formatWeightGrams,
     parseCycleStockFromApi,
 } from "./harvestUtils";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 const SIZE_CATEGORIES = ["Small", "Medium", "Large", "Extra Large"];
 

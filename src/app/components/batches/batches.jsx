@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Scale, Pencil, Trash, MoveRight, Fish, Link, FileDown } from "lucide-react";
+import { Scale, Pencil, MoveRight, Fish, Link, FileDown, GitBranch, ArrowRightLeft, History, Scissors } from "lucide-react";
 import { BatchReportModal } from "./BatchReportModal";
+import { BatchTraceabilityModal } from "./BatchTraceabilityModal";
+import { BatchTransferForm } from "./BatchTransferForm";
+import { BatchTransferHistoryModal } from "./BatchTransferHistoryModal";
+import { BatchSplitForm } from "./BatchSplitForm";
 import {
   Card,
   CardAction,
@@ -14,7 +18,6 @@ import {
 } from "@/components/ui/card";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -36,7 +39,7 @@ import { BatchRegisterForm } from "./batch_form";
 import { AssignPondForm } from "../ponds/assign_pond_form";
 import { AssignCycleForm } from "../cycles/assign_cycle_form";
 import { Button } from "@/components/ui/button";
-import { apiFetchJsonSafe, safeFetch } from "@/lib/apiClient";
+import { apiFetchJsonSafe } from "@/lib/apiClient";
 import { assertPathSegment } from "@/lib/apiConfig";
 import { useAuthReady } from "@/hooks/useAuthReady";
 
@@ -68,6 +71,8 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
   const [loading, setLoading] = useState(true);
   // { batchId, batchLabel } | null
   const [reportBatch, setReportBatch] = useState(null);
+  const [traceabilityBatch, setTraceabilityBatch] = useState(null);
+  const [transferHistoryOpen, setTransferHistoryOpen] = useState(false);
   const { authReady, hasToken } = useAuthReady();
 
   useEffect(() => {
@@ -106,8 +111,10 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
         } else if (typeof item.batch === 'object' && item.batch !== null) {
           b = item.batch;
         }
-        if (statusFilter === "active") return b.status === "active";
-        return b.status !== "active"; // history: everything else
+        const isPondAssignment = typeof item.batch === 'object' && item.batch !== null && !item.pond_batch_detail;
+        const assignmentEnded = isPondAssignment && (!!item.end_date || Number(item.current_quantity) <= 0);
+        if (statusFilter === "active") return b.status === "active" && !assignmentEnded;
+        return b.status !== "active" || assignmentEnded;
       });
     }
 
@@ -222,7 +229,9 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
         if (cycleId && pondId) {
           path = `/farms/${id}/ponds/${pondId}/cycles/${cycleId}/cycle-batches/`;
         } else if (cycleId) {
-          path = `/farms/${id}/cycles/${cycleId}/cycle-batches/`;
+          throw new Error(
+            "No se puede consultar un ciclo sin identificar su estanque."
+          );
         }
 
         const result = await apiFetchJsonSafe(path, {
@@ -244,30 +253,6 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
     fetchBatches();
   }, [authReady, hasToken, id, cycleId, pondId]);
 
-  const handleDelete = async (cycleBatchId) => {
-    try {
-      const path =
-        pondId && cycleId
-          ? `/farms/${id}/ponds/${pondId}/cycles/${cycleId}/cycle-batches/${cycleBatchId}/`
-          : `/farms/${id}/cycle-batches/${cycleBatchId}/`;
-
-      const { response, error } = await safeFetch(path, {
-        method: "DELETE",
-        source: "Batches.handleDelete",
-      });
-
-      if (error) throw error;
-      if (!response?.ok) {
-        throw new Error("Error al desvincular el lote");
-      }
-      toast.success("Lote desvinculado del ciclo correctamente");
-      setBatches((prev) => prev.filter((b) => b.id !== cycleBatchId));
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al desvincular el lote");
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-50">
@@ -279,6 +264,14 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
   return (
     <>
       <Toaster position="top-center" />
+
+      {!!pondId && !cycleId && (
+        <div className="mx-auto flex max-w-6xl justify-end px-4 pt-4">
+          <Button type="button" variant="outline" onClick={() => setTransferHistoryOpen(true)}>
+            <History className="mr-2 h-4 w-4" /> Historial de transferencias
+          </Button>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 p-4">
         {filteredBatches.length === 0 && !search && (
@@ -307,6 +300,7 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
         {filteredBatches.map((item) => {
           const isCycleBatch = !!item.pond_batch_detail;
           const isPondBatch = typeof item.batch === 'object' && item.batch !== null && !isCycleBatch;
+          const assignmentEnded = isPondBatch && (!!item.end_date || Number(item.current_quantity) <= 0);
 
           const b = isCycleBatch ? item.pond_batch_detail.batch : (isPondBatch ? item.batch : item);
           const displayId = b.id || item.id;
@@ -345,7 +339,15 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
                       <FileDown className="text-slate-400 hover:text-purple-600 transition-colors cursor-pointer" />
                     </button>
 
-                    <AlertDialog>
+                    <button
+                      title="Ver trazabilidad"
+                      onClick={() => setTraceabilityBatch({ batchId: b.id, batchLabel: `Lote #${b.id}` })}
+                      className="text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                    >
+                      <GitBranch />
+                    </button>
+
+                    {!isCycleBatch && !assignmentEnded && !item.assigned_cycle && !b.active_cycle && <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Pencil className="text-blue-600 cursor-pointer hover:text-blue-700 transition-colors" />
                       </AlertDialogTrigger>
@@ -373,32 +375,7 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
                           <AlertDialogCancel>Cerrar</AlertDialogCancel>
                         </AlertDialogFooter>
                       </AlertDialogContent>
-                    </AlertDialog>
-
-                    {!!cycleId && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Trash className="text-red-600 cursor-pointer hover:text-red-700 transition-colors" />
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="w-[95vw] max-w-md">
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Desvincular lote?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Se desvinculará el lote #{displayId} del ciclo actual.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(item.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              Desvincular
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                    </AlertDialog>}
                   </div>
                 </CardAction>
               </CardHeader>
@@ -421,10 +398,12 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
               <CardFooter className="flex flex-col gap-4 items-start">
                 <div className="w-full flex justify-between items-center">
                   <p
-                    className={`capitalize px-3 py-1 rounded-full text-sm font-semibold ${STATUS_COLORS[b.status] || "bg-gray-100 text-gray-700"
+                    className={`capitalize px-3 py-1 rounded-full text-sm font-semibold ${assignmentEnded
+                      ? "bg-slate-100 text-slate-700"
+                      : STATUS_COLORS[b.status] || "bg-gray-100 text-gray-700"
                       }`}
                   >
-                    {STATUS_LABELS[b.status] || b.status}
+                    {assignmentEnded ? "Trasladado / finalizado en este estanque" : STATUS_LABELS[b.status] || b.status}
                   </p>
                 </div>
 
@@ -447,11 +426,36 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
                         farmId={id}
                         batchId={b.id}
                         defaultQuantity={b.initial_quantity}
+                        sourceSpecieId={b.specie?.id || b.specie}
+                        sourceBiologicalState={b.biological_state}
                       />
                     </DialogContent>
                   </Dialog>
                 )}
-                {!!pondId && !cycleId && !item.assigned_cycle && !b.active_cycle && (
+                {!pondId && !cycleId && !b.pond && !item.pond && b.status === "active" && Number(b.initial_quantity) > 1 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full border-purple-200 text-purple-700 hover:bg-purple-50">
+                        <Scissors className="mr-2 h-4 w-4" /> Dividir antes de asignar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Dividir {b.code || `Lote #${displayId}`}</DialogTitle>
+                        <DialogDescription>
+                          Crea dos lotes trazables antes de asignarlos a sus estanques.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <BatchSplitForm
+                        farmId={id}
+                        batchId={b.id}
+                        batchCode={b.code || `Lote #${displayId}`}
+                        totalQuantity={b.initial_quantity}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                )}
+                {!!pondId && !cycleId && !assignmentEnded && !item.assigned_cycle && !b.active_cycle && (
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="outline" className="w-full flex gap-2 border-green-200 text-green-700 hover:bg-green-50">
@@ -475,6 +479,32 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
                     </DialogContent>
                   </Dialog>
                 )}
+                {!!pondId && !cycleId && isPondBatch && !assignmentEnded && !item.assigned_cycle && !b.active_cycle && displayQuantity > 0 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full border-amber-200 text-amber-700 hover:bg-amber-50">
+                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Transferir a otro estanque
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Transferir {b.code || `Lote #${displayId}`}</DialogTitle>
+                        <DialogDescription>
+                          Disponible solo para lotes que no pertenecen a un ciclo activo o pausado.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <BatchTransferForm
+                        farmId={id}
+                        sourcePondId={pondId}
+                        sourcePondBatchId={item.id}
+                        currentQuantity={displayQuantity}
+                        batchCode={b.code || `Lote #${displayId}`}
+                        sourceSpecieId={b.specie?.id || b.specie}
+                        sourceBiologicalState={b.biological_state}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                )}
                 {!!pondId && !cycleId && (item.assigned_cycle || b.active_cycle) && (
                   <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-md text-sm font-medium">
                     <Link className="w-4 h-4" />
@@ -494,6 +524,19 @@ export function Batches({ id, pondId, cycleId, search = "", statusFilter = null 
         farmId={id}
         batchId={reportBatch?.batchId}
         batchLabel={reportBatch?.batchLabel ?? ""}
+      />
+      <BatchTraceabilityModal
+        open={!!traceabilityBatch}
+        onClose={() => setTraceabilityBatch(null)}
+        farmId={id}
+        batchId={traceabilityBatch?.batchId}
+        batchLabel={traceabilityBatch?.batchLabel ?? ""}
+      />
+      <BatchTransferHistoryModal
+        open={transferHistoryOpen}
+        onClose={() => setTransferHistoryOpen(false)}
+        farmId={id}
+        pondId={pondId}
       />
     </>
   );

@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Toaster } from "sonner";
 import { feedingService } from "@/lib/feedingService";
 import { usePermissions } from "@/lib/usePermissions";
+import { API_BASE } from "@/lib/apiConfig";
 
 const STATE_LABELS = {
   in_progress: "En curso",
@@ -65,7 +66,7 @@ export default function ScheduleDetail({ params }) {
         const [versionData, planData, speciesData] = await Promise.all([
           feedingService.getScheduleVersions(id, scheduleId),
           feedingService.getScheduleFeedingPlans(id, scheduleId),
-          fetch("https://backend-pongase-trucha.onrender.com/api/species/", {
+          fetch(`${API_BASE}/species/`, {
             headers: { Authorization: `Bearer ${localStorage.getItem("access")}` },
           }),
         ]);

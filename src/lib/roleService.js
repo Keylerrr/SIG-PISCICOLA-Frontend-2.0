@@ -117,15 +117,15 @@ function sanitizeAppPermissions(appPermissions = []) {
         can_delete: false,
       });
     } else {
-      const anyAction = Boolean(
-        perm.can_view || perm.can_create || perm.can_edit || perm.can_delete
-      );
+      const canCreate = Boolean(perm.can_create);
+      const canUpdate = Boolean(perm.can_edit || perm.can_update);
+      const canDelete = Boolean(perm.can_delete);
       sanitized.push({
         module: perm.app,
-        can_view: anyAction,
-        can_create: Boolean(perm.can_create),
-        can_update: Boolean(perm.can_edit || perm.can_update),
-        can_delete: Boolean(perm.can_delete),
+        can_view: Boolean(perm.can_view || canCreate || canUpdate || canDelete),
+        can_create: canCreate,
+        can_update: canUpdate,
+        can_delete: canDelete,
       });
     }
   }

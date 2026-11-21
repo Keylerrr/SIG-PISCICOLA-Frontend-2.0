@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { feedingService } from "@/lib/feedingService";
+import { API_BASE } from "@/lib/apiConfig";
 import { toast } from "sonner";
 
 function normalizeFieldErrors(fieldErrors) {
@@ -78,7 +79,7 @@ export function FeedingScheduleForm({ farmId, onSuccess }) {
     async function loadOptions() {
       try {
         const productResponse = await fetch(
-          `https://backend-pongase-trucha.onrender.com/api/farms/${farmId}/products/`,
+          `${API_BASE}/farms/${farmId}/products/`,
           { headers: { Authorization: `Bearer ${localStorage.getItem("access")}` } }
         );
         if (productResponse.ok) {
@@ -90,7 +91,7 @@ export function FeedingScheduleForm({ farmId, onSuccess }) {
       }
 
       try {
-        const speciesResponse = await fetch("https://backend-pongase-trucha.onrender.com/api/species/", {
+        const speciesResponse = await fetch(`${API_BASE}/species/`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("access")}` },
         });
         if (speciesResponse.ok) {
@@ -102,7 +103,7 @@ export function FeedingScheduleForm({ farmId, onSuccess }) {
       }
 
       try {
-        const feedResponse = await fetch("https://backend-pongase-trucha.onrender.com/api/feeding/options/", {
+        const feedResponse = await fetch(`${API_BASE}/feeding/options/`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("access")}` },
         });
         if (feedResponse.ok) {

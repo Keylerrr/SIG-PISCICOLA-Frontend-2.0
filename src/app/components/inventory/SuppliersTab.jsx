@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { API_BASE } from "@/lib/apiConfig";
 import {
   Dialog,
   DialogContent,
@@ -32,8 +33,6 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 export function SuppliersTab({ farmId }) {
   const [suppliers, setSuppliers] = useState([]);

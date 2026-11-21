@@ -10,6 +10,7 @@ import { Toaster } from "sonner";
 import { feedingService } from "@/lib/feedingService";
 import { usePermissions } from "@/lib/usePermissions";
 import { FeedingScheduleForm } from "@/app/components/feeding/feeding_schedule_form";
+import { API_BASE } from "@/lib/apiConfig";
 
 const TYPES = [
   { key: "alevin", label: "Alevín" },
@@ -65,7 +66,7 @@ export function FeedingSchedules({ id }) {
       const token = localStorage.getItem("access");
 
       try {
-        const speciesResponse = await fetch("https://backend-pongase-trucha.onrender.com/api/species/", {
+        const speciesResponse = await fetch(`${API_BASE}/species/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (speciesResponse.ok) {
@@ -77,7 +78,7 @@ export function FeedingSchedules({ id }) {
       }
 
       try {
-        const productResponse = await fetch(`https://backend-pongase-trucha.onrender.com/api/farms/${id}/products/`, {
+        const productResponse = await fetch(`${API_BASE}/farms/${id}/products/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (productResponse.ok) {

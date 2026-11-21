@@ -7,6 +7,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Pencil, Lock, Save, X, UserRound, ArrowLeft, ShieldCheck, Mail, Phone, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { API_BASE } from "@/lib/apiConfig";
 
 import {
   Dialog,
@@ -47,7 +48,7 @@ export default function PerfilPage() {
     setLoading(true);
     const token = localStorage.getItem("access");
     try {
-      const res = await fetch("https://backend-pongase-trucha.onrender.com/api/users/me/", {
+      const res = await fetch(`${API_BASE}/users/me/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -79,7 +80,7 @@ export default function PerfilPage() {
     setSavingProfile(true);
     const token = localStorage.getItem("access");
     try {
-      const res = await fetch("https://backend-pongase-trucha.onrender.com/api/users/me/", {
+      const res = await fetch(`${API_BASE}/users/me/`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -114,7 +115,7 @@ export default function PerfilPage() {
     setSavingPassword(true);
     const token = localStorage.getItem("access");
     try {
-      const res = await fetch("https://backend-pongase-trucha.onrender.com/api/auth/change-password/", {
+      const res = await fetch(`${API_BASE}/auth/change-password/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

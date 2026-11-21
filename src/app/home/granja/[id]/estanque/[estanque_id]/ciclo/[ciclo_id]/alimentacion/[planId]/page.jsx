@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toaster, toast } from "sonner";
 import { feedingService } from "@/lib/feedingService";
+import { API_BASE } from "@/lib/apiConfig";
 import { usePermissions } from "@/lib/usePermissions";
 
 /* ----------------------------- helpers ----------------------------- */
@@ -191,7 +192,7 @@ export default function FeedingPlanDetail({ params }) {
         if (token) {
           // Use pond-scoped endpoint for cycle name
           const resCycle = await fetch(
-            `https://backend-pongase-trucha.onrender.com/api/farms/${id}/ponds/${estanque_id}/cycles/${ciclo_id}/`,
+            `${API_BASE}/farms/${id}/ponds/${estanque_id}/cycles/${ciclo_id}/`,
             {
               method: "GET",
               headers: {

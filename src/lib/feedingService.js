@@ -1,4 +1,4 @@
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "./apiConfig";
 
 function buildQuery(params = {}) {
   const query = new URLSearchParams();
@@ -156,7 +156,7 @@ export const feedingService = {
     });
   },
 
-  getOccupiedRanges: async (farmId, cycleId) => {
-    return apiRequest(`/farms/${farmId}/cycles/${cycleId}/feeding-plans/occupied-ranges/`);
+  getOccupiedRanges: async (farmId, pondId, cycleId) => {
+    return apiRequest(`/farms/${farmId}/ponds/${pondId}/cycles/${cycleId}/feeding-plans/occupied-ranges/`);
   },
 };

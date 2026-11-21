@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, MapPin } from "lucide-react";
 import { useFlags } from "@/hooks/useFlags";
+import { API_BASE } from "@/lib/apiConfig";
 import { UserRoundX, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,7 +61,7 @@ export function RegisterWorker() {
       if (!token) return;
 
       try {
-        const res = await fetch("https://backend-pongase-trucha.onrender.com/api/users/me/", {
+        const res = await fetch(`${API_BASE}/users/me/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -81,7 +82,7 @@ export function RegisterWorker() {
     if (!canAssignManager) return;
 
     const token = localStorage.getItem("access");
-    fetch("https://backend-pongase-trucha.onrender.com/api/users/productor/", {
+    fetch(`${API_BASE}/users/productor/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -102,7 +103,7 @@ export function RegisterWorker() {
       setIsFarmsLoading(true);
       setFarmsError(null);
       try {
-        let url = "https://backend-pongase-trucha.onrender.com/api/farms/";
+        let url = `${API_BASE}/farms/`;
 
         if (canAssignManager) {
           if (!selectedManager) {
@@ -110,7 +111,7 @@ export function RegisterWorker() {
             setIsFarmsLoading(false);
             return;
           }
-          url = `https://backend-pongase-trucha.onrender.com/api/farms/productor/${selectedManager}/`;
+          url = `${API_BASE}/farms/productor/${selectedManager}/`;
         }
 
         const res = await fetch(url, {
@@ -135,13 +136,13 @@ export function RegisterWorker() {
   const fetchWorkersViaFarms = useCallback(async (token, productorId) => {
     try {
       const farmsRes = await fetch(
-        `https://backend-pongase-trucha.onrender.com/api/farms/productor/${productorId}/`,
+        `${API_BASE}/farms/productor/${productorId}/`,
         { headers: { Authorization: `Bearer ${token}` }}
       );
 
       if (!farmsRes.ok) {
         const farmsResAlt = await fetch(
-          "https://backend-pongase-trucha.onrender.com/api/farms/",
+          `${API_BASE}/farms/`,
           { headers: { Authorization: `Bearer ${token}` }}
         );
         if (!farmsResAlt.ok) throw new Error("Error al cargar granjas");
@@ -155,7 +156,7 @@ export function RegisterWorker() {
 
       for (const farm of farms) {
         const membersRes = await fetch(
-          `https://backend-pongase-trucha.onrender.com/api/farms/${farm.id}/members/`,
+          `${API_BASE}/farms/${farm.id}/members/`,
           { headers: { Authorization: `Bearer ${token}` }}
         );
         
@@ -203,7 +204,7 @@ export function RegisterWorker() {
       let workersData = [];
 
       if (userRole === "Admin") {
-        const url = `https://backend-pongase-trucha.onrender.com/api/users/productor/${idToUse}/operarios/`;
+        const url = `${API_BASE}/users/productor/${idToUse}/operarios/`;
         
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -265,7 +266,7 @@ export function RegisterWorker() {
     const token = localStorage.getItem("access");
 
     await toast.promise(
-      fetch("https://backend-pongase-trucha.onrender.com/api/invitations/operario/", {
+      fetch(`${API_BASE}/invitations/operario/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -322,7 +323,7 @@ export function RegisterWorker() {
 
     await toast.promise(
       fetch(
-        `https://backend-pongase-trucha.onrender.com/api/farms/${workerToDelete.farm_id}/members/${workerToDelete.worker_id}/`,
+        `${API_BASE}/farms/${workerToDelete.farm_id}/members/${workerToDelete.worker_id}/`,
         {
           method: "DELETE",
           headers: {

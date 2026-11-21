@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { API_BASE } from "@/lib/apiConfig";
 import { Plus, Pencil, Trash, FileText, Activity, Scale, Clock } from "lucide-react";
 import {
     Card,
@@ -33,8 +34,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toaster, toast } from "sonner";
 import { ProductionPlanForm } from "./production_plan_form";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 const TYPE_LABELS = {
     nursery: "Cría (Nursery)",

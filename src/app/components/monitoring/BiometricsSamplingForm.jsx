@@ -4,8 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 const getLocalDateString = () => {
     const today = new Date();

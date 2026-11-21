@@ -8,6 +8,7 @@ import { LogOut, Settings, UserRound, Fish, UserRoundPlus, Package, Bell, UsersR
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AlertsTab } from '../inventory/AlertsTab';
 import { useAlerts } from '@/hooks/useAlerts';
+import { API_BASE } from '@/lib/apiConfig';
 
 export function Navbar() {
   const [isLoading, setIsLoading] = useState(false);
@@ -45,7 +46,7 @@ export function Navbar() {
       const token = localStorage.getItem("access")
       const refresh = localStorage.getItem("refresh");
 
-      const res = await fetch("https://backend-pongase-trucha.onrender.com/api/auth/logout/", {
+      const res = await fetch(`${API_BASE}/auth/logout/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
