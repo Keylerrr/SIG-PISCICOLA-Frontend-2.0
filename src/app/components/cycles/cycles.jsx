@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
-    Calendar, CalendarX, Pencil, Trash, History, Zap, ChevronDown,
+    Calendar, CalendarX, Pencil, History, Zap, ChevronDown,
     ChevronUp, Plus, Fish, Scale, Loader2, ChevronRight,
 } from "lucide-react";
 import {
     Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, CardAction,
 } from "@/components/ui/card";
 import {
-    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialog, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
@@ -19,8 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Toaster, toast } from "sonner";
 import Link from "next/link";
 import { CycleRegisterForm } from "./cycle_form";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 const STATE_LABELS = {
     in_progress: "En Ejecución",
@@ -110,7 +109,7 @@ function CycleBatches({ farmId, pondId, cycleId }) {
 }
 
 // ── Single cycle card ───────────────────────────────────────────────
-function CycleCard({ c, farmId, pondId, onDelete, speciesMap }) {
+function CycleCard({ c, farmId, pondId, speciesMap }) {
     const [expanded, setExpanded] = useState(false);
 
     return (
@@ -140,8 +139,8 @@ function CycleCard({ c, farmId, pondId, onDelete, speciesMap }) {
 
                 <CardAction>
                     <div className="flex gap-2 items-center">
-                        {/* Edit */}
-                        <AlertDialog>
+                        {/* Solo fecha estimada y comentarios son editables en proceso. */}
+                        {ACTIVE_STATES.includes(c.state) && <AlertDialog>
                             <AlertDialogTrigger asChild>
                                 <button className="text-blue-500 hover:text-blue-700 transition-colors p-1">
                                     <Pencil className="w-4 h-4" />
@@ -165,30 +164,7 @@ function CycleCard({ c, farmId, pondId, onDelete, speciesMap }) {
                                 />
                                 <AlertDialogFooter><AlertDialogCancel>Cerrar</AlertDialogCancel></AlertDialogFooter>
                             </AlertDialogContent>
-                        </AlertDialog>
-
-                        {/* Delete */}
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <button className="text-red-400 hover:text-red-600 transition-colors p-1">
-                                    <Trash className="w-4 h-4" />
-                                </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent className="w-[95vw] max-w-md">
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Eliminar ciclo?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Se eliminará <span className="font-bold">{c.name}</span> permanentemente.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => onDelete(c.id)} className="bg-red-600 hover:bg-red-700">
-                                        Eliminar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                        </AlertDialog>}
                     </div>
                 </CardAction>
             </CardHeader>
@@ -263,20 +239,6 @@ export function Cycles({ farmId, pondId, pondStatus, canManage = false }) {
             }
         };
         fetchAll();
-    }, [farmId, pondId]);
-
-    const handleDelete = useCallback(async (cycleId) => {
-        const token = localStorage.getItem("access");
-        toast.promise(
-            fetch(`${API_BASE}/farms/${farmId}/ponds/${pondId}/cycles/${cycleId}/`, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-            }).then(async (res) => {
-                if (!res.ok) throw new Error();
-                setCiclos((prev) => prev.filter((c) => c.id !== cycleId));
-            }),
-            { loading: "Eliminando...", success: "Ciclo eliminado", error: "Error al eliminar" }
-        );
     }, [farmId, pondId]);
 
     const sorted = useMemo(() => {
@@ -419,7 +381,6 @@ export function Cycles({ farmId, pondId, pondStatus, canManage = false }) {
                             c={c}
                             farmId={farmId}
                             pondId={pondId}
-                            onDelete={handleDelete}
                             speciesMap={speciesMap}
                         />
                     ))}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/apiConfig";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   Select,
@@ -13,8 +14,6 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Toaster, toast } from 'sonner';
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 /**
  * CycleRegisterForm — pond-scoped.
@@ -101,22 +100,30 @@ export function CycleRegisterForm({
       toast.error("La fecha estimada de finalización debe ser posterior a la fecha de inicio.");
       return false;
     }
-    const validStates = ["in_progress", "paused", "finished", "cancelled"];
-    if (!validStates.includes(state)) { toast.error("Debe seleccionar un estado válido."); return false; }
+    if (op === 1 && state !== "in_progress") {
+      toast.error("Todo ciclo nuevo debe iniciar en progreso.");
+      return false;
+    }
     
     return true;
   };
 
-  const buildPayload = () => ({
-    pond: parseInt(pondProp),
-    specie: parseInt(specie),
-    production_plan: parseInt(productionPlan),
-    name: name.trim(),
-    start_date: startDate,
-    estimated_finish_date: estimatedFinishDate || undefined,
-    state,
-    comments: comments.trim(),
-  });
+  const buildPayload = () =>
+    op === 1
+      ? {
+          pond: parseInt(pondProp),
+          specie: parseInt(specie),
+          production_plan: parseInt(productionPlan),
+          name: name.trim(),
+          start_date: startDate,
+          estimated_finish_date: estimatedFinishDate,
+          state: "in_progress",
+          comments: comments.trim(),
+        }
+      : {
+          estimated_finish_date: estimatedFinishDate,
+          comments: comments.trim(),
+        };
 
   const extractError = (errorData) => {
     if (typeof errorData === "string") return errorData;
@@ -175,55 +182,11 @@ export function CycleRegisterForm({
     }
   };
 
-  const handleFinish = async () => {
-    const token = localStorage.getItem("access");
-    try {
-      const res = await fetch(`${API_BASE}/farms/${farmProp}/ponds/${pondProp}/cycles/${idProp}/`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          finish_date: new Date().toISOString().split("T")[0],
-          state: "finished",
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.clone().json().catch(() => ({}));
-        toast.error(extractError(errorData) || `Error ${res.status}: ${res.statusText}`);
-        return;
-      }
-      toast.success("Ciclo finalizado correctamente.");
-      setTimeout(() => window.location.reload(), 1200);
-    } catch (err) {
-      console.error("Error finishing cycle:", err);
-      toast.error("Error de conexión. Verifica tu internet e intenta nuevamente.");
-    }
-  };
-
-  const handleDelete = async () => {
-    const token = localStorage.getItem("access");
-    try {
-      const res = await fetch(`${API_BASE}/farms/${farmProp}/ponds/${pondProp}/cycles/${idProp}/`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const errorData = await res.clone().json().catch(() => ({}));
-        toast.error(extractError(errorData) || `Error ${res.status}: ${res.statusText}`);
-        return;
-      }
-      toast.success("Ciclo eliminado correctamente.");
-      setTimeout(() => window.location.reload(), 1200);
-    } catch (err) {
-      console.error("Error deleting cycle:", err);
-      toast.error("Error de conexión. Verifica tu internet e intenta nuevamente.");
-    }
-  };
-
   return (
     <FieldGroup>
       <Toaster position="top-center" />
 
-      <Field>
+      {op === 1 && <Field>
         <FieldLabel>Especie</FieldLabel>
         <Select onValueChange={setSpecie} value={specie} disabled={loadingSpecies}>
           <SelectTrigger>
@@ -239,9 +202,9 @@ export function CycleRegisterForm({
             </SelectGroup>
           </SelectContent>
         </Select>
-      </Field>
+      </Field>}
 
-      <Field>
+      {op === 1 && <Field>
         <FieldLabel>Plan de Producción</FieldLabel>
         <Select onValueChange={setProductionPlan} value={productionPlan} disabled={loadingPlans || !specie}>
           <SelectTrigger>
@@ -257,9 +220,9 @@ export function CycleRegisterForm({
             </SelectGroup>
           </SelectContent>
         </Select>
-      </Field>
+      </Field>}
 
-      <Field>
+      {op === 1 && <Field>
         <FieldLabel>Nombre del Ciclo</FieldLabel>
         <Input
           value={name}
@@ -267,9 +230,9 @@ export function CycleRegisterForm({
           placeholder="Ej: Ciclo de Engorde 2026"
           required
         />
-      </Field>
+      </Field>}
 
-      <Field>
+      {op === 1 && <Field>
         <FieldLabel>Fecha de Inicio</FieldLabel>
         <Input
           type="date"
@@ -277,10 +240,9 @@ export function CycleRegisterForm({
           onChange={(e) => setStartDate(e.target.value)}
           required
         />
-      </Field>
+      </Field>}
 
-      {op === 1 && (
-        <Field>
+      <Field>
           <FieldLabel>Fecha Estimada de Finalización</FieldLabel>
           <Input
             type="date"
@@ -289,24 +251,6 @@ export function CycleRegisterForm({
             min={startDate}
             required
           />
-        </Field>
-      )}
-
-      <Field>
-        <FieldLabel>Estado</FieldLabel>
-        <Select onValueChange={setState} value={state}>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccione un estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="in_progress">En Progreso</SelectItem>
-              <SelectItem value="paused">Pausado</SelectItem>
-              <SelectItem value="finished">Finalizado</SelectItem>
-              <SelectItem value="cancelled">Cancelado</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
       </Field>
 
       <Field>
@@ -326,24 +270,6 @@ export function CycleRegisterForm({
         >
           {op === 1 ? "Crear Ciclo" : "Actualizar"}
         </Button>
-        {op === 2 && (
-          <>
-            <Button
-              type="button"
-              onClick={handleFinish}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Finalizar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Eliminar
-            </Button>
-          </>
-        )}
       </Field>
     </FieldGroup>
   );
