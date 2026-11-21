@@ -21,14 +21,13 @@ import {
     Utensils,
 } from "lucide-react";
 import { Toaster } from "sonner";
+import { API_BASE } from "@/lib/apiConfig";
 import { Batches } from "@/app/components/batches/batches";
 import { MonitoringSection } from "@/app/components/monitoring/MonitoringSection";
 import { HarvestModal } from "@/app/components/harvest/HarvestModal";
 import { HarvestHistorySection } from "@/app/components/harvest/HarvestHistorySection";
 import CycleFeedingContent from "./alimentacion/CycleFeedingContent";
 import CycleHealthContent from "./salud/CycleHealthContent";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
 
 const STATE_LABELS = {
     in_progress: "En Ejecución",

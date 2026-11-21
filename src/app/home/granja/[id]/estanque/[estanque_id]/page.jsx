@@ -10,8 +10,7 @@ import { Cycles } from "@/app/components/cycles/cycles";
 import { usePermissions } from "@/lib/usePermissions";
 import { clearSession } from "@/lib/auth";
 import { EntityNotFound, LoadError } from "@/components/states/ResourceState";
-
-const API_BASE = "https://backend-pongase-trucha.onrender.com/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 const STATUS_BG = {
     active: "bg-green-100",
