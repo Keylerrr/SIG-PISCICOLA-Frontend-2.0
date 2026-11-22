@@ -48,8 +48,8 @@ export function Ponds({ id, search, filter }) {
         cleaning: "bg-yellow-100 text-yellow-700",
     };
     const statusLabels = {
-        active: "Activo",
-        inactive: "Inactivo",
+        active: "Disponible",
+        inactive: "En Mantenimiento",
         in_use: "En Uso",
         cleaning: "En Limpieza",
     };
@@ -219,7 +219,7 @@ export function Ponds({ id, search, filter }) {
                                     <CardAction>
                                         <div className="flex items-center gap-3">
                                             <AlertDialog>
-                                                {!isInactive && !e.has_active_cycle && (
+                                                {!isInactive && (
                                                     <AlertDialogTrigger asChild>
                                                         <Pencil className="cursor-pointer text-blue-600" />
                                                     </AlertDialogTrigger>
@@ -231,31 +231,35 @@ export function Ponds({ id, search, filter }) {
                                                             ¿Editar estanque?
                                                         </AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            Cambie los datos a continuación para editar la
-                                                            informacio del estanque{" "}
-                                                            <span className="font-bold">{e.name}</span>.
+                                                            {e.has_active_cycle
+                                                                ? `No se puede editar el estanque ${e.name} porque tiene un ciclo activo en proceso. Finalice el ciclo para modificar sus datos.`
+                                                                : <>Cambie los datos a continuación para editar la
+                                                                    informacio del estanque{" "}
+                                                                    <span className="font-bold">{e.name}</span>.</>}
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
-                                                    <PondRegisterForm
-                                                        op={0}
-                                                        idProp={e.id}
-                                                        idFarmProp={id}
-                                                        nombreProp={e.name}
-                                                        estadoProp={e.status}
-                                                        typeProp={e.type}
-                                                        capacidadProp={e.capacity}
-                                                        areaProp={e.area}
-                                                        volumenProp={e.volume}
-                                                        profundidadProp={e.depth}
-                                                        descripcionProp={e.description}
-                                                    />
+                                                    {!e.has_active_cycle && (
+                                                        <PondRegisterForm
+                                                            op={0}
+                                                            idProp={e.id}
+                                                            idFarmProp={id}
+                                                            nombreProp={e.name}
+                                                            estadoProp={e.status}
+                                                            typeProp={e.type}
+                                                            capacidadProp={e.capacity}
+                                                            areaProp={e.area}
+                                                            volumenProp={e.volume}
+                                                            profundidadProp={e.depth}
+                                                            descripcionProp={e.description}
+                                                        />
+                                                    )}
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
 
-                                            {!e.has_active_cycle && <AlertDialog>
+                                            <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Trash className="text-red-600 cursor-pointer" />
                                                 </AlertDialogTrigger>
@@ -265,22 +269,28 @@ export function Ponds({ id, search, filter }) {
                                                             ¿Eliminar estanque?
                                                         </AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            Esta acción no se puede deshacer. Se eliminará el
-                                                            estanque:{" "}
-                                                            <span className="font-bold">{e.name}</span>.
+                                                            {e.has_active_cycle
+                                                                ? `No se puede eliminar el estanque ${e.name} porque tiene un ciclo activo asociado.`
+                                                                : <>Esta acción no se puede deshacer. Se eliminará el
+                                                                    estanque:{" "}
+                                                                    <span className="font-bold">{e.name}</span>.</>}
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        <AlertDialogAction
-                                                            onClick={() => handleDelete(e.id)}
-                                                            className="bg-red-600 hover:bg-red-700"
-                                                        >
-                                                            Eliminar
-                                                        </AlertDialogAction>
+                                                        <AlertDialogCancel>
+                                                            {e.has_active_cycle ? "Aceptar" : "Cancelar"}
+                                                        </AlertDialogCancel>
+                                                        {!e.has_active_cycle && (
+                                                            <AlertDialogAction
+                                                                onClick={() => handleDelete(e.id)}
+                                                                className="bg-red-600 hover:bg-red-700"
+                                                            >
+                                                                Eliminar
+                                                            </AlertDialogAction>
+                                                        )}
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
-                                            </AlertDialog>}
+                                            </AlertDialog>
                                         </div>
                                     </CardAction>
                                 </CardHeader>

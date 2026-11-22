@@ -730,8 +730,8 @@ export default function Granja({ params }) {
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="inactive">Inactivo</SelectItem>
+                  <SelectItem value="active">Disponible</SelectItem>
+                  <SelectItem value="inactive">En Mantenimiento</SelectItem>
                   <SelectItem value="cleaning">En Limpieza</SelectItem>
                   <SelectItem value="in_use">En Uso</SelectItem>
                 </SelectGroup>

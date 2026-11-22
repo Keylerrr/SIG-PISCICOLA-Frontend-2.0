@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Farms } from "../components/farms/farms";
 import { FarmRegisterForm } from "../components/farms/farm_form";
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,17 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
 export default function Home() {
+    const [canCreateFarm, setCanCreateFarm] = useState(false);
     const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        try {
+            const role = JSON.parse(localStorage.getItem("user") || "{}")?.role?.name?.toLowerCase();
+            setCanCreateFarm(role === "productor" || role === "admin");
+        } catch {
+            setCanCreateFarm(false);
+        }
+    }, []);
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -31,35 +41,37 @@ export default function Home() {
                         Selecciona una granja para gestionar sus estanques y producción
                     </p>
                 </div>
-                <Dialog>
-                    <form>
-                        <DialogTrigger asChild>
-                            <Button className="text-xl flex items-center gap-2 text-white rounded-xl bg-blue-600 px-4 py-5"
-                                variant="outline">
-                                <Plus />
-                                Agregar Granja
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>Agregar Granja</DialogTitle>
-                                <DialogDescription>
-                                    Escribe la información de la granja que vas a agregar. Haz click en guardar granja cuando hayas terminado.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <FarmRegisterForm
-                                op={1}
-                                idProp={""}
-                                nombreProp={""}
-                                departamentoProp={""}
-                                ciudadProp={""}
-                                direccionProp={""}
-                                areaProp={""}
-                                managerProp={""}
-                            />
-                        </DialogContent>
-                    </form>
-                </Dialog>
+                {canCreateFarm && (
+                    <Dialog>
+                        <form>
+                            <DialogTrigger asChild>
+                                <Button className="text-xl flex items-center gap-2 text-white rounded-xl bg-blue-600 px-4 py-5"
+                                    variant="outline">
+                                    <Plus />
+                                    Agregar Granja
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-2xl">
+                                <DialogHeader>
+                                    <DialogTitle>Agregar Granja</DialogTitle>
+                                    <DialogDescription>
+                                        Escribe la información de la granja que vas a agregar. Haz click en guardar granja cuando hayas terminado.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <FarmRegisterForm
+                                    op={1}
+                                    idProp={""}
+                                    nombreProp={""}
+                                    departamentoProp={""}
+                                    ciudadProp={""}
+                                    direccionProp={""}
+                                    areaProp={""}
+                                    managerProp={""}
+                                />
+                            </DialogContent>
+                        </form>
+                    </Dialog>
+                )}
             </div>
 
             <div className="px-4 sm:px-6 lg:px-8 mt-4">

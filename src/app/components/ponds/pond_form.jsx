@@ -264,10 +264,10 @@ export function PondRegisterForm({
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="active">
-                    <span className="flex items-center gap-2"><Dot className="bg-green-500" />Activo</span>
+                    <span className="flex items-center gap-2"><Dot className="bg-green-500" />Disponible</span>
                   </SelectItem>
                   <SelectItem value="inactive">
-                    <span className="flex items-center gap-2"><Dot className="bg-red-500" />Inactivo</span>
+                    <span className="flex items-center gap-2"><Dot className="bg-red-500" />En Mantenimiento</span>
                   </SelectItem>
                   <SelectItem value="in_use">
                     <span className="flex items-center gap-2"><Dot className="bg-blue-500" />En uso</span>
